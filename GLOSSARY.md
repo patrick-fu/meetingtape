@@ -13,12 +13,18 @@ Sound produced by the Mac itself (apps, media, calls), captured through a CoreAu
 _Avoid_: internal recording, loopback, desktop audio
 
 **Microphone audio**:
-The user's microphone input after 3A processing; occupies the right channel of the output file.
+The user's microphone input in the right channel of the output file, normally after 3A processing and retained raw during degraded intervals.
 _Avoid_: mic track, voice input
 
 **3A**:
-Echo cancellation, noise suppression, and automatic gain control applied to microphone audio, always on; the echo canceller uses system audio as its reference.
+Echo cancellation, noise suppression, and automatic gain control applied to microphone audio during normal recording; the echo canceller uses system audio as its reference.
 _Avoid_: audio enhancement
+
+**Raw microphone audio**:
+The microphone signal before 3A processing.
+
+**Degraded interval**:
+A time range in a session during which microphone audio is retained without 3A because speech processing has failed.
 
 **Session**:
 One recording run from `start` to `stop`; at most one session is active at a time and there is no pause or resume.
