@@ -1,0 +1,5 @@
+# Keep the session through device changes and system sleep
+
+MeetingTape targets system audio across all output devices and follows the macOS default microphone, rebuilding capture automatically when the input changes. A session prevents idle system sleep while allowing lock and display sleep; actual system sleep suspends capture, and wake resumes the same session. This keeps a meeting in one recording without requiring a new start command, while public pause/resume commands remain out of scope.
+
+The user confirmed this policy on 2026-10-23 for [#7](https://github.com/patrick-fu/meetingtape/issues/7), after the [Doubao reference check](../research/doubao-capture-behavior.md). Doubao's packaged recorder implements system-triggered pause/resume, but its all-output-device scope and current microphone selection defaults remain unverified; those are MeetingTape requirements, not claims of equivalent behavior. Interruption time representation, recovery failure handling and output preservation still need design and consumer-level validation in [#8](https://github.com/patrick-fu/meetingtape/issues/8).
