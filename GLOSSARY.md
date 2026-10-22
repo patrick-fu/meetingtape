@@ -26,8 +26,11 @@ The microphone signal before 3A processing.
 **Degraded interval**:
 A time range in a session during which microphone audio is retained without 3A because speech processing has failed.
 
+**Capture interruption**:
+A time range in an active session during which one or both audio sources are temporarily unavailable.
+
 **Session**:
-One recording run from `start` to `stop`; at most one session is active at a time and there is no pause or resume.
+One recording from start to stop, including automatic recovery after system sleep or device changes; at most one session is active at a time.
 _Avoid_: recording job
 
 **Developer ID**:
