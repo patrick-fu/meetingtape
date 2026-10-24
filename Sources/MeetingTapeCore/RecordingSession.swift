@@ -90,6 +90,9 @@ public final class RecordingSession: @unchecked Sendable {
     private var capture = AudioCapture()
     private var timeline = CaptureTimeline()
     private var speech = SpeechGate()
+    // Process Tap reference can trail its acoustic echo; borrow 40 ms from the existing render buffer.
+    private let echoReferenceLeadFrames: Int64 = 1_920
+    private var speechNeedsReset = false
     private var store: RecoveryStore?
     private var configuration: RecordingConfiguration?
     private var timer: DispatchSourceTimer?
@@ -237,6 +240,7 @@ public final class RecordingSession: @unchecked Sendable {
         while nextFrame < target {
             let count = Int(min(target - nextFrame, 480 - nextFrame % 480))
             let audio = timeline.render(at: nextFrame, count: count)
+            if !audio.hasMicrophone { speechNeedsReset = true }
             let beginning = Double(nextFrame) / 48_000
             let end = Double(nextFrame + Int64(count)) / 48_000
             if !audio.hasSystem {
@@ -250,16 +254,22 @@ public final class RecordingSession: @unchecked Sendable {
             if audio.hasAnyAudio {
                 var mic = audio.microphone
                 if audio.hasMicrophone {
-                    if audio.hasSystem && count == 480 {
-                        let processed = speech.process(microphone: mic, left: audio.systemLeft, right: audio.systemRight)
-                        mic = processed.samples
-                        if let reason = processed.reason {
-                            addInterval(start: beginning, end: end, source: .microphone, reason: reason, degraded: true)
+                    if count == 480 {
+                        let reference = timeline.systemReference(at: nextFrame + echoReferenceLeadFrames, count: count)
+                        if reference.complete {
+                            if speechNeedsReset { speech.reset(); speechNeedsReset = false }
+                            let processed = speech.process(microphone: mic, left: reference.left, right: reference.right)
+                            mic = processed.samples
+                            if let reason = processed.reason {
+                                addInterval(start: beginning, end: end, source: .microphone, reason: reason, degraded: true)
+                            }
+                        } else {
+                            speechNeedsReset = true
+                            addInterval(start: beginning, end: end, source: .microphone,
+                                        reason: "echo-cancellation reference unavailable", degraded: true)
                         }
-                    } else if !audio.hasSystem {
-                        addInterval(start: beginning, end: end, source: .microphone,
-                                    reason: "echo-cancellation reference unavailable", degraded: true)
                     } else {
+                        speechNeedsReset = true
                         addInterval(start: beginning, end: end, source: .microphone,
                                     reason: "short speech-processing block", degraded: true)
                     }
@@ -415,7 +425,7 @@ public final class RecordingSession: @unchecked Sendable {
         nextFrame = Int64(now * 48_000)
         timeline = CaptureTimeline()
         clock.beginEpoch()
-        speech.reset()
+        speechNeedsReset = true
         sleepingSince = nil
         statusLock.lock()
         preservationWatch = .awake(lastCommit: ProcessInfo.processInfo.systemUptime)

@@ -80,3 +80,31 @@ import Testing
         }
     }
 }
+
+@Test func futureSystemReferencePreservesCurrentAudioAndReportsCoverage() throws {
+    let timeline = CaptureTimeline()
+    let microphone = (0..<4_800).map { Float($0) / 100_000 + 0.25 }
+    let system = (0..<4_800).flatMap { frame -> [Float] in
+        let sample = frame < 1_000 ? Float(0) : Float(frame) / 100_000
+        return [sample, -sample]
+    }
+    try timeline.insert(CapturedAudio(source: .system, hostTime: 1, sampleRate: 48_000,
+                                     channels: 2, generation: 1, samples: system), frame: 0)
+    try timeline.insert(CapturedAudio(source: .microphone, hostTime: 1, sampleRate: 48_000,
+                                     channels: 1, generation: 1, samples: microphone), frame: 0)
+    try timeline.flush()
+    let future = timeline.systemReference(at: 1_200, count: 480)
+    #expect(future.complete)
+    #expect(future.left[0] == system[2_400])
+    #expect(future.right[0] == system[2_401])
+    let missing = timeline.systemReference(at: 4_700, count: 480)
+    #expect(!missing.complete)
+    let silence = timeline.systemReference(at: 0, count: 480)
+    let validSilence = silence.complete && silence.left.allSatisfy { $0 == 0 }
+    #expect(validSilence)
+    let current = timeline.render(at: 0, count: 480)
+    #expect(current.hasSystem)
+    #expect(current.hasMicrophone)
+    let originalMicrophone = current.microphone == Array(microphone.prefix(480))
+    #expect(originalMicrophone)
+}
