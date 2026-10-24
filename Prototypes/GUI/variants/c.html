@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeetingTape - 实体台式录音机 (Variant C)</title>
+  <style>
+    :root {
+      --c-bg: #1c1b1a;
+      --c-chassis: #e7e2d6;
+      --c-chassis-deep: #d8d1c2;
+      --c-chassis-rim: #f6f3eb;
+      --c-panel-dark: #1e1b18;
+      --c-amber: #ff9d1e;
+      --c-amber-glow: rgba(255, 157, 30, 0.45);
+      --c-meter-bg: #f5eedf;
+      --c-meter-frame: #322f2b;
+      --c-red-rec: #d92d20;
+      --c-red-glow: rgba(217, 45, 32, 0.65);
+      --c-metal: #a9a296;
+      --font-mono: "SF Mono", Menlo, Consolas, Monaco, monospace;
+      --font-ui: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background: radial-gradient(circle at 50% 30%, #2b2825 0%, #151413 100%);
+      color: #3b3630;
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 64px 20px 80px; /* 避开左上角原型标识与底部切换条 */
+      overflow-x: hidden;
+    }
+
+    /* 螺丝装饰 */
+    .screw {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fff 0%, #8a8277 55%, #4a453f 100%);
+      box-shadow: inset 0 1px 1px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.4);
+      position: absolute;
+    }
+    .screw::after {
+      content: '';
+      position: absolute;
+      top: 4px; left: 1px; width: 8px; height: 1.5px;
+      background: #36322d;
+      transform: rotate(38deg);
+    }
+    .s-tl { top: 12px; left: 14px; }
+    .s-tr { top: 12px; right: 14px; }
+    .s-bl { bottom: 12px; left: 14px; }
+    .s-br { bottom: 12px; right: 14px; }
+
+    /* 录音机主体机身 */
+    .deck-frame {
+      width: 100%;
+      max-width: 680px;
+      position: relative;
+      background: linear-gradient(180deg, var(--c-chassis-rim) 0%, var(--c-chassis) 8%, var(--c-chassis-deep) 100%);
+      border-radius: 14px;
+      box-shadow:
+        0 24px 60px rgba(0,0,0,0.65),
+        0 4px 12px rgba(0,0,0,0.3),
+        inset 0 1px 1px #ffffff,
+        inset 0 -2px 3px rgba(0,0,0,0.25);
+      border: 1px solid #c8c0b0;
+      padding: 24px 26px 20px;
+      transition: all 0.25s ease;
+    }
+
+    /* 顶栏铭牌与指示灯 */
+    .deck-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4px 16px;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+      margin-bottom: 18px;
+    }
+    .brand-badge {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .brand-title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: #3b352e;
+      text-transform: uppercase;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+    }
+    .brand-sub {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      color: #8c8273;
+    }
+    .power-section {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #7b7264;
+      letter-spacing: 0.5px;
+    }
+    .led {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #4a453f;
+      transition: all 0.2s;
+    }
+    .led.active {
+      background: #39e365;
+      box-shadow: 0 0 8px #39e365;
+    }
+
+    /* 双模拟 VU 表格区 */
+    .deck-meters-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 16px;
+      align-items: center;
+      background: #d4ccbd;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.25), 0 1px 0 rgba(255,255,255,0.7);
+      margin-bottom: 18px;
+    }
+
+    .vu-gauge {
+      background: var(--c-meter-bg);
+      border-radius: 6px;
+      border: 2px solid var(--c-meter-frame);
+      box-shadow: inset 0 3px 8px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.8);
+      padding: 8px 10px 4px;
+      position: relative;
+      overflow: hidden;
+    }
+    .vu-label {
+      position: absolute;
+      top: 6px;
+      left: 10px;
+      font-size: 9px;
+      font-weight: 800;
+      color: #6d6252;
+      letter-spacing: 0.5px;
+    }
+    .vu-sub {
+      position: absolute;
+      top: 6px;
+      right: 10px;
+      font-size: 8px;
+      font-weight: 700;
+      color: #a89f91;
+    }
+    .meter-dial {
+      width: 100%;
+      height: 64px;
+      display: block;
+    }
+    .dial-arc { fill: none; stroke: #4f473c; stroke-width: 1.5; }
+    .dial-red { fill: none; stroke: #d93829; stroke-width: 2.2; }
+    .dial-tick { stroke: #6b6051; stroke-width: 1; }
+    .dial-text { font-size: 6px; fill: #655a4b; font-weight: bold; font-family: var(--font-mono); }
+    .dial-text-red { font-size: 6px; fill: #c92a2a; font-weight: bold; font-family: var(--font-mono); }
+
+    .needle {
+      transform-origin: 80px 72px;
+      transform: rotate(-44deg);
+      transition: transform 0.08s cubic-bezier(0.1, 0.8, 0.3, 1);
+    }
+    .needle-cap { fill: #2d2822; }
+
+    /* 琥珀色荧光计时器 */
+    .counter-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+    }
+    .counter-screen {
+      background: #14120f;
+      border: 2px solid #282420;
+      border-radius: 4px;
+      padding: 6px 12px;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.6);
+      text-align: center;
+    }
+    .counter-digits {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--c-amber);
+      text-shadow: 0 0 10px var(--c-amber-glow), 0 0 2px var(--c-amber);
+    }
+    .counter-tag {
+      font-size: 8px;
+      font-weight: 800;
+      color: #7d7262;
+      margin-top: 5px;
+      letter-spacing: 1px;
+    }
+
+    /* 胶带标签式标题输入 */
+    .tape-title-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+      background: #fdfcf7;
+      padding: 8px 14px;
+      border-radius: 4px;
+      border: 1px dashed #aba291;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .tape-tag {
+      font-size: 10px;
+      font-weight: 800;
+      color: #9c917f;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+    .tape-input {
+      border: none;
+      background: transparent;
+      outline: none;
+      font-size: 13px;
+      font-weight: 700;
+      color: #2e2a25;
+      width: 100%;
+      font-family: var(--font-ui);
+    }
+    .tape-input:focus {
+      background: rgba(255, 157, 30, 0.08);
+      border-radius: 2px;
+    }
+
+    /* 中间控制栏：输出路径与干音拨钮 */
+    .deck-subcontrols {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4px 18px;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    .path-selector-btn {
+      background: linear-gradient(180deg, #fff 0%, #e8e2d5 100%);
+      border: 1px solid #aba08d;
+      border-radius: 5px;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #4a4237;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08), inset 0 1px 0 #fff;
+    }
+    .path-selector-btn:hover { background: #faf7f0; }
+    .path-selector-btn:active { transform: translateY(1px); }
+
+    .toggle-knob-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .toggle-text {
+      font-size: 11px;
+      font-weight: 700;
+      color: #5d5345;
+    }
+    .switch-slot {
+      width: 34px;
+      height: 18px;
+      background: #25221d;
+      border-radius: 10px;
+      padding: 2px;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      transition: background 0.2s;
+    }
+    .switch-slot.on { background: #476c53; }
+    .switch-lever {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #ffffff 0%, #d4ccc0 60%, #8a8277 100%);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      transform: translateX(0);
+      transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.4, 1);
+    }
+    .switch-slot.on .switch-lever { transform: translateX(16px); }
+
+    /* 主机械按键操作面板 */
+    .deck-transport {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+    }
+    .transport-info {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .status-badge {
+      font-size: 12px;
+      font-weight: 800;
+      color: #5c5345;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #9b9180;
+    }
+    .status-dot.recording {
+      background: var(--c-red-rec);
+      box-shadow: 0 0 10px var(--c-red-rec);
+      animation: pulse 1.2s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+    .engine-tip {
+      font-size: 10px;
+      color: #8c8170;
+    }
+
+    /* 醒目的大红色机械按键 */
+    .rec-btn-bezel {
+      background: linear-gradient(180deg, #999182 0%, #ded7cb 50%, #7d7568 100%);
+      border-radius: 50%;
+      padding: 5px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.35), inset 0 1px 1px #fff;
+    }
+    .rec-btn {
+      width: 66px;
+      height: 66px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      outline: none;
+      background: radial-gradient(circle at 40% 35%, #ff4d40 0%, #c92a2a 70%, #851717 100%);
+      box-shadow:
+        inset 0 2px 3px rgba(255,255,255,0.6),
+        inset 0 -3px 5px rgba(0,0,0,0.6),
+        0 6px 12px rgba(0,0,0,0.45);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      transition: transform 0.08s ease, filter 0.15s ease;
+    }
+    .rec-btn:hover { filter: brightness(1.06); }
+    .rec-btn:active {
+      transform: translateY(2px);
+      box-shadow:
+        inset 0 1px 2px rgba(255,255,255,0.4),
+        inset 0 -1px 3px rgba(0,0,0,0.6),
+        0 2px 4px rgba(0,0,0,0.5);
+    }
+    .rec-btn.recording {
+      background: radial-gradient(circle at 45% 40%, #ff5252 0%, #991b1b 85%, #5a0909 100%);
+      box-shadow:
+        0 0 16px var(--c-red-glow),
+        inset 0 2px 3px rgba(255,255,255,0.5),
+        inset 0 -3px 5px rgba(0,0,0,0.7);
+    }
+    .rec-symbol {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .rec-btn.recording .rec-symbol {
+      width: 13px;
+      height: 13px;
+      border-radius: 2px;
+    }
+    .rec-btn-text {
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+      text-transform: uppercase;
+    }
+
+    /* 抽屉手柄与收纳仓 */
+    .drawer-toggle-btn {
+      background: none;
+      border: 1px solid #aba08e;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #5c5244;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: inset 0 1px 0 #fff;
+    }
+    .drawer-toggle-btn:hover { background: rgba(255,255,255,0.4); }
+
+    /* 下滑出的磁带收纳抽屉 */
+    .tape-drawer {
+      margin-top: 14px;
+      background: #25221e;
+      border-radius: 6px;
+      padding: 12px 14px;
+      border: 1px solid #3b3731;
+      box-shadow: inset 0 3px 8px rgba(0,0,0,0.6);
+      display: none;
+    }
+    .tape-drawer.open { display: block; }
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #36322b;
+    }
+    .drawer-title {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #a49987;
+      text-transform: uppercase;
+    }
+    .drawer-stats {
+      font-size: 9px;
+      color: #696052;
+      font-family: var(--font-mono);
+    }
+    .tape-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+    .tape-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1c1a17;
+      border: 1px solid #36322b;
+      padding: 7px 10px;
+      border-radius: 4px;
+      transition: border-color 0.15s;
+    }
+    .tape-item:hover { border-color: #524b40; }
+    .tape-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow: hidden;
+    }
+    .tape-name {
+      font-size: 11px;
+      font-weight: 700;
+      color: #ded7cb;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      max-width: 320px;
+    }
+    .tape-sub {
+      font-size: 9px;
+      color: #7b7160;
+      font-family: var(--font-mono);
+      display: flex;
+      gap: 8px;
+    }
+    .tape-play-btn {
+      background: #332f29;
+      border: 1px solid #4a443b;
+      border-radius: 3px;
+      color: #e2dbcd;
+      padding: 4px 8px;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .tape-play-btn:hover { background: #423d35; }
+    .tape-play-btn.playing {
+      background: var(--c-amber);
+      color: #1a1713;
+      border-color: var(--c-amber);
+      font-weight: 800;
+    }
+
+    /* 弹窗：路径选择器 */
+    .modal-overlay {
+      visibility: hidden;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(2px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+    }
+    .modal-overlay.open { visibility: visible; opacity: 1; pointer-events: auto; }
+    .modal-card {
+      background: #ece7db;
+      border: 1px solid #a89f8f;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 440px;
+      padding: 20px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+    }
+    .modal-header {
+      font-size: 13px;
+      font-weight: 800;
+      color: #383229;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .preset-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .preset-btn {
+      background: #fcfbf8;
+      border: 1px solid #c2b8a7;
+      padding: 8px 10px;
+      border-radius: 5px;
+      text-align: left;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: #423c34;
+      cursor: pointer;
+    }
+    .preset-btn:hover { background: #fff8eb; border-color: var(--c-amber); }
+    .custom-path-input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #b8af9e;
+      border-radius: 5px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: #fff;
+      margin-bottom: 14px;
+      outline: none;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .modal-btn {
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid #aba08e;
+    }
+    .modal-btn-cancel { background: #dfd9cb; color: #574e41; }
+    .modal-btn-confirm { background: #383229; color: #f2ede2; border-color: #2b261f; }
+  </style>
+</head>
+<body>
+
+  <!-- 实体磁带录音机主机身 -->
+  <div class="deck-frame">
+    <!-- 四角五金螺丝 -->
+    <div class="screw s-tl"></div>
+    <div class="screw s-tr"></div>
+    <div class="screw s-bl"></div>
+    <div class="screw s-br"></div>
+
+    <!-- 顶栏铭牌与状态指示灯 -->
+    <div class="deck-header">
+      <div class="brand-badge">
+        <span class="brand-title">MeetingTape</span>
+        <span class="brand-sub">DECK C-10 · DUAL-TRACK</span>
+      </div>
+      <div class="power-section">
+        <span>POWER</span>
+        <div class="led active" id="powerLed"></div>
+      </div>
+    </div>
+
+    <!-- 双模拟表头 + 琥珀色荧光计时器 -->
+    <div class="deck-meters-row">
+      <!-- 左表：系统音频 (SYSTEM RAW) -->
+      <div class="vu-gauge">
+        <div class="vu-label">L · 系统音频</div>
+        <div class="vu-sub">RAW</div>
+        <svg class="meter-dial" viewBox="0 0 160 80">
+          <path class="dial-arc" d="M 24 70 A 62 62 0 0 1 114 26" />
+          <path class="dial-red" d="M 114 26 A 62 62 0 0 1 138 42" />
+          <line class="dial-tick" x1="30" y1="62" x2="35" y2="58" />
+          <line class="dial-tick" x1="56" y1="41" x2="60" y2="36" />
+          <line class="dial-tick" x1="88" y1="30" x2="90" y2="24" />
+          <line class="dial-tick" x1="114" y1="26" x2="116" y2="20" stroke="#d93829" />
+          <text class="dial-text" x="22" y="66">-20</text>
+          <text class="dial-text" x="48" y="44">-7</text>
+          <text class="dial-text" x="84" y="22">0</text>
+          <text class="dial-text-red" x="122" y="32">+3</text>
+          <line id="needleSys" class="needle" x1="80" y1="72" x2="80" y2="16" stroke="#26221d" stroke-width="1.6" />
+          <circle class="needle-cap" cx="80" cy="72" r="5" />
+        </svg>
+      </div>
+
+      <!-- 中间：琥珀色机械/数码计数器 -->
+      <div class="counter-block">
+        <div class="counter-screen">
+          <div class="counter-digits" id="timerDisplay">00:00</div>
+        </div>
+        <div class="counter-tag">DISCRETE 2CH</div>
+      </div>
+
+      <!-- 右表：麦克风 (MIC 3A) -->
+      <div class="vu-gauge">
+        <div class="vu-label">R · 麦克风</div>
+        <div class="vu-sub" id="micTag">已处理</div>
+        <svg class="meter-dial" viewBox="0 0 160 80">
+          <path class="dial-arc" d="M 24 70 A 62 62 0 0 1 114 26" />
+          <path class="dial-red" d="M 114 26 A 62 62 0 0 1 138 42" />
+          <line class="dial-tick" x1="30" y1="62" x2="35" y2="58" />
+          <line class="dial-tick" x1="56" y1="41" x2="60" y2="36" />
+          <line class="dial-tick" x1="88" y1="30" x2="90" y2="24" />
+          <line class="dial-tick" x1="114" y1="26" x2="116" y2="20" stroke="#d93829" />
+          <text class="dial-text" x="22" y="66">-20</text>
+          <text class="dial-text" x="48" y="44">-7</text>
+          <text class="dial-text" x="84" y="22">0</text>
+          <text class="dial-text-red" x="122" y="32">+3</text>
+          <line id="needleMic" class="needle" x1="80" y1="72" x2="80" y2="16" stroke="#26221d" stroke-width="1.6" />
+          <circle class="needle-cap" cx="80" cy="72" r="5" />
+        </svg>
+      </div>
+    </div>
+
+    <!-- 胶带纸质标题标签 -->
+    <div class="tape-title-row">
+      <label class="tape-tag" for="tapeTitleInput">磁带标题:</label>
+      <input type="text" id="tapeTitleInput" class="tape-input" value="战略周会与产品方案同步" spellcheck="false" />
+    </div>
+
+    <!-- 辅助控制栏：输出目录 + 原麦克风干音拨钮 -->
+    <div class="deck-subcontrols">
+      <button type="button" class="path-selector-btn" id="openDirBtn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+        <span id="outputDirLabel">~/Movies/MeetingTape</span>
+      </button>
+
+      <button type="button" class="toggle-knob-wrap" id="rawToggleWrap" role="switch" aria-checked="false" style="border:0;background:none;font:inherit">
+        <span class="toggle-text">保留原始麦克风</span>
+        <div class="switch-slot" id="rawSwitchSlot">
+          <div class="switch-lever"></div>
+        </div>
+      </button>
+    </div>
+
+    <!-- 主机械操作区：状态信息、大红录音键、抽屉拉钮 -->
+    <div class="deck-transport">
+      <div class="transport-info">
+        <div class="status-badge">
+          <div class="status-dot" id="statusDot"></div>
+          <span id="statusText">就绪待命</span>
+        </div>
+      </div>
+
+      <!-- 核心大红机械录音按键 -->
+      <div class="rec-btn-bezel">
+        <button type="button" class="rec-btn" id="masterRecBtn" aria-label="开始录制">
+          <div class="rec-symbol" id="recSymbol"></div>
+          <span class="rec-btn-text" id="recBtnLabel">REC</span>
+        </button>
+      </div>
+
+      <!-- 磁带收纳仓拉手 -->
+      <button type="button" class="drawer-toggle-btn" id="toggleDrawerBtn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        <span id="drawerBtnLabel">磁带盒 (2)</span>
+      </button>
+    </div>
+
+    <!-- 磁带收纳抽屉 (展开式档案栏) -->
+    <div class="tape-drawer" id="tapeDrawer">
+      <div class="drawer-header">
+        <span class="drawer-title">最近录音</span>
+        <span class="drawer-stats" id="tapeStatsText">2 盘磁带 · 双声道 AAC</span>
+      </div>
+      <div class="tape-list" id="tapeList">
+        <!-- 动态与初始录音记录 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 输出路径选择器模态窗 -->
+  <div class="modal-overlay" id="dirModal" role="dialog" aria-label="保存位置">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span>选择输出存储目录</span>
+        <span style="font-size: 11px; color: #887d6d;">本地文件夹</span>
+      </div>
+      <div class="preset-list">
+        <button type="button" class="preset-btn" data-path="~/Movies/MeetingTape">~/Movies/MeetingTape (默认推荐)</button>
+        <button type="button" class="preset-btn" data-path="~/Desktop/会议录音">~/Desktop/会议录音</button>
+        <button type="button" class="preset-btn" data-path="~/Documents/AudioArchive">~/Documents/AudioArchive</button>
+      </div>
+      <input type="text" class="custom-path-input" id="customPathInput" aria-label="文件夹路径" value="~/Movies/MeetingTape" spellcheck="false" />
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn-cancel" id="closeDirModalBtn">取消</button>
+        <button type="button" class="modal-btn modal-btn-confirm" id="confirmDirModalBtn">确定保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 本地演示音频播放器 -->
+  <audio id="audioPlayer" src="../assets/sample-stereo.m4a" preload="auto"></audio>
+
+  <!-- 桥接外部控制器脚本 -->
+  <script src="../bridge.js"></script>
+
+  <script>
+    // 状态机管理
+    let isRecording = false;
+    let isPlaying = false;
+    let currentPlayingId = null;
+    let recordTimer = null;
+    let recordSeconds = 0;
+    let needleTimer = null;
+    let keepRawAudio = false;
+    let currentOutputDir = "~/Movies/MeetingTape";
+
+    // 预置录音磁带列表
+    const recordings = [
+      {
+        id: "rec-01",
+        title: "2026-10-24 架构评审讨论",
+        duration: "04:12",
+        time: "昨天 16:30",
+        size: "3.8 MB",
+        hasRaw: true
+      },
+      {
+        id: "rec-02",
+        title: "晨间工程 Standup 录制",
+        duration: "01:45",
+        time: "今天 09:30",
+        size: "1.6 MB",
+        hasRaw: false
+      }
+    ];
+
+    // DOM 元素引用
+    const needleSys = document.getElementById("needleSys");
+    const needleMic = document.getElementById("needleMic");
+    const timerDisplay = document.getElementById("timerDisplay");
+    const masterRecBtn = document.getElementById("masterRecBtn");
+    const recSymbol = document.getElementById("recSymbol");
+    const recBtnLabel = document.getElementById("recBtnLabel");
+    const statusDot = document.getElementById("statusDot");
+    const statusText = document.getElementById("statusText");
+    const tapeTitleInput = document.getElementById("tapeTitleInput");
+    const rawToggleWrap = document.getElementById("rawToggleWrap");
+    const rawSwitchSlot = document.getElementById("rawSwitchSlot");
+    const micTag = document.getElementById("micTag");
+    const toggleDrawerBtn = document.getElementById("toggleDrawerBtn");
+    const tapeDrawer = document.getElementById("tapeDrawer");
+    const tapeList = document.getElementById("tapeList");
+    const drawerBtnLabel = document.getElementById("drawerBtnLabel");
+    const tapeStatsText = document.getElementById("tapeStatsText");
+    const openDirBtn = document.getElementById("openDirBtn");
+    const outputDirLabel = document.getElementById("outputDirLabel");
+    const dirModal = document.getElementById("dirModal");
+    const closeDirModalBtn = document.getElementById("closeDirModalBtn");
+    const confirmDirModalBtn = document.getElementById("confirmDirModalBtn");
+    const customPathInput = document.getElementById("customPathInput");
+    const audioPlayer = document.getElementById("audioPlayer");
+
+    // 向宿主报告状态
+    function reportCurrentState(extra = {}) {
+      if (typeof window.reportState === 'function') {
+        window.reportState({
+          variant: "C",
+          status: isRecording ? "recording" : (isPlaying ? "playing" : "ready"),
+          seconds: recordSeconds,
+          title: tapeTitleInput.value.trim() || "未命名录音",
+          outputDirectory: currentOutputDir,
+          keepRaw: keepRawAudio,
+          recordingsCount: recordings.length,
+          ...extra
+        });
+      }
+    }
+
+    // 格式化时间 00:00
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60).toString().padStart(2, '0');
+      const s = (sec % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    // 摆动指针更新
+    function setNeedleAngle(element, deg) {
+      element.style.transform = `rotate(${deg}deg)`;
+    }
+
+    // 启动指针拟真物理动态抖动
+    function startMeterAnimation() {
+      if (needleTimer) clearInterval(needleTimer);
+      needleTimer = setInterval(() => {
+        if (!isRecording) {
+          setNeedleAngle(needleSys, -44);
+          setNeedleAngle(needleMic, -44);
+          return;
+        }
+        // 模拟立体声双通道的独立活动量
+        const sysRand = -25 + Math.random() * 45; // -25deg 到 +20deg
+        const micRand = -30 + Math.random() * 50; // -30deg 到 +20deg
+        setNeedleAngle(needleSys, sysRand);
+        setNeedleAngle(needleMic, micRand);
+      }, 90);
+    }
+
+    function stopMeterAnimation() {
+      if (needleTimer) clearInterval(needleTimer);
+      setNeedleAngle(needleSys, -44);
+      setNeedleAngle(needleMic, -44);
+    }
+
+    // 录音触发逻辑
+    function startRecording() {
+      isRecording = true;
+      recordSeconds = 0;
+      timerDisplay.textContent = "00:00";
+      masterRecBtn.classList.add("recording");
+      masterRecBtn.setAttribute('aria-label', '停止录音');
+      [tapeTitleInput, rawToggleWrap, openDirBtn].forEach(control => control.disabled = true);
+      recBtnLabel.textContent = "STOP";
+      statusDot.classList.add("recording");
+      statusText.textContent = "正在双轨记录中...";
+      startMeterAnimation();
+
+      recordTimer = setInterval(() => {
+        recordSeconds++;
+        timerDisplay.textContent = formatTime(recordSeconds);
+        reportCurrentState();
+      }, 1000);
+
+      // 若在播放则停止
+      stopPlayback();
+      reportCurrentState({ event: "recording_started" });
+    }
+
+    function stopRecording() {
+      if (!isRecording) return;
+      isRecording = false;
+      clearInterval(recordTimer);
+      stopMeterAnimation();
+
+      masterRecBtn.classList.remove("recording");
+      masterRecBtn.setAttribute('aria-label', '开始录音');
+      [tapeTitleInput, rawToggleWrap, openDirBtn].forEach(control => control.disabled = false);
+      recBtnLabel.textContent = "REC";
+      statusDot.classList.remove("recording");
+      statusText.textContent = "就绪待命";
+
+      const finalDuration = formatTime(recordSeconds || 1);
+      const title = tapeTitleInput.value.trim() || "新磁带记录";
+
+      // 归档进入最近磁带列表
+      const newTape = {
+        id: "rec-" + Date.now(),
+        title: title,
+        duration: finalDuration,
+        time: "刚刚",
+        size: (Math.max(0.5, (recordSeconds * 0.025))).toFixed(1) + " MB",
+        hasRaw: keepRawAudio
+      };
+      recordings.unshift(newTape);
+      renderTapeList();
+
+      // 自动展开抽屉让用户清晰看到生成文件
+      tapeDrawer.classList.add("open");
+
+      // 自动给下一个录音准备递增名称
+      tapeTitleInput.value = "新录音 " + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      timerDisplay.textContent = "00:00";
+
+      reportCurrentState({ event: "recording_finalized", latest: newTape });
+    }
+
+    masterRecBtn.addEventListener("click", () => {
+      if (!isRecording) {
+        startRecording();
+      } else {
+        stopRecording();
+      }
+    });
+
+    // 保留原始干音切换
+    rawToggleWrap.addEventListener("click", () => {
+      keepRawAudio = !keepRawAudio;
+      rawToggleWrap.setAttribute('aria-checked', String(keepRawAudio));
+      if (keepRawAudio) {
+        rawSwitchSlot.classList.add("on");
+      } else {
+        rawSwitchSlot.classList.remove("on");
+      }
+      reportCurrentState({ event: "raw_toggle_changed" });
+    });
+
+    // 标题编辑监听
+    tapeTitleInput.addEventListener("input", () => {
+      reportCurrentState({ event: "title_changed" });
+    });
+
+    // 抽屉展开/折叠
+    toggleDrawerBtn.addEventListener("click", () => {
+      tapeDrawer.classList.toggle("open");
+    });
+
+    // 音频播放与暂停控制
+    function stopPlayback() {
+      if (isPlaying) {
+        audioPlayer.pause();
+        audioPlayer.currentTime = 0;
+        isPlaying = false;
+        currentPlayingId = null;
+        renderTapeList();
+        reportCurrentState({ event: "playback_stopped" });
+      }
+    }
+
+    function togglePlayTape(tapeId) {
+      if (isRecording) return; // 录音中不允许回放干扰
+
+      if (isPlaying && currentPlayingId === tapeId) {
+        stopPlayback();
+        return;
+      }
+
+      audioPlayer.play().then(() => {
+        isPlaying = true;
+        currentPlayingId = tapeId;
+        renderTapeList();
+        reportCurrentState({ event: "playback_started", playingId: tapeId });
+      });
+    }
+
+    audioPlayer.addEventListener("ended", () => {
+      isPlaying = false;
+      currentPlayingId = null;
+      renderTapeList();
+      reportCurrentState({ event: "playback_finished" });
+    });
+
+    // 渲染抽屉内磁带列表
+    function renderTapeList() {
+      drawerBtnLabel.textContent = `磁带盒 (${recordings.length})`;
+      tapeStatsText.textContent = `${recordings.length} 盘磁带 · 双声道 AAC`;
+
+      tapeList.innerHTML = "";
+      recordings.forEach(rec => {
+        const isCurrentPlaying = isPlaying && currentPlayingId === rec.id;
+        const item = document.createElement("div");
+        item.className = "tape-item";
+        item.innerHTML = `
+          <div class="tape-meta">
+            <span class="tape-name" title="${rec.title}">${rec.title}</span>
+            <div class="tape-sub">
+              <span>⏱ ${rec.duration}</span>
+              <span>${rec.time}</span>
+              <span>${rec.size}</span>
+              ${rec.hasRaw ? '<span style="color:#6fa57d;">[RAW+]</span>' : ''}
+            </div>
+          </div>
+          <button type="button" class="tape-play-btn ${isCurrentPlaying ? 'playing' : ''}" data-id="${rec.id}">
+            ${isCurrentPlaying ? '❚❚ 暂停' : '▶ 试听'}
+          </button>
+        `;
+
+        const playBtn = item.querySelector(".tape-play-btn");
+        playBtn.addEventListener("click", () => togglePlayTape(rec.id));
+        tapeList.appendChild(item);
+      });
+    }
+
+    // 路径选择模态窗事件
+    openDirBtn.addEventListener("click", () => {
+      customPathInput.value = currentOutputDir;
+      dirModal.classList.add("open");
+    });
+    closeDirModalBtn.addEventListener("click", () => {
+      dirModal.classList.remove("open");
+    });
+    document.querySelectorAll(".preset-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        customPathInput.value = btn.dataset.path;
+      });
+    });
+    confirmDirModalBtn.addEventListener("click", () => {
+      const val = customPathInput.value.trim();
+      if (val) {
+        currentOutputDir = val;
+        outputDirLabel.textContent = val;
+      }
+      dirModal.classList.remove("open");
+      reportCurrentState({ event: "output_directory_changed" });
+    });
+
+    // 键盘支持（回车停止或开始，避开左右切换键）
+    window.addEventListener("keydown", (e) => {
+      if (e.target.closest('input, textarea, select, button, a, [contenteditable]')) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        masterRecBtn.click();
+      }
+    });
+
+    // 初始化渲染
+    renderTapeList();
+    stopMeterAnimation();
+    reportCurrentState({ event: "initialized" });
+  </script>
+</body>
+</html>

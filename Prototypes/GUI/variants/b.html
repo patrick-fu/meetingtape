@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeetingTape - 菜单栏小组件 (方案 B)</title>
+  <style>
+    :root {
+      --font-stack: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+      --accent: #007aff;
+      --accent-danger: #ff3b30;
+      --accent-success: #34c759;
+      --bg-panel: rgba(255, 255, 255, 0.82);
+      --bg-subtle: rgba(0, 0, 0, 0.04);
+      --border-panel: rgba(255, 255, 255, 0.65);
+      --border-subtle: rgba(0, 0, 0, 0.08);
+      --text-main: #1d1d1f;
+      --text-muted: #86868b;
+      --shadow-popover: 0 16px 40px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.08);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-stack);
+      height: 100vh;
+      overflow: hidden;
+      background: radial-gradient(circle at 75% 20%, #3ca5b5 0%, #1a6b7d 45%, #0d4653 100%);
+      color: var(--text-main);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* 顶部系统菜单栏 (留出左上角给宿主原型标签) */
+    .macos-menubar {
+      height: 30px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.28);
+      backdrop-filter: blur(28px) saturate(190%);
+      -webkit-backdrop-filter: blur(28px) saturate(190%);
+      border-bottom: 0.5px solid rgba(255, 255, 255, 0.3);
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 0 16px;
+      position: relative;
+      z-index: 100;
+    }
+    .menubar-items {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.95);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+    .menu-icon-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: inherit;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px 6px;
+      border-radius: 4px;
+      transition: background 0.15s ease;
+    }
+    .menu-icon-btn:hover { background: rgba(255, 255, 255, 0.25); }
+    .menu-icon-btn.active {
+      background: rgba(255, 255, 255, 0.35);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4);
+    }
+    .record-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-danger);
+      margin-left: 4px;
+      display: none;
+      animation: pulse 1.2s infinite;
+    }
+    .record-indicator.visible { display: inline-block; }
+
+    /* 菜单栏下拉弹窗 */
+    .popover-anchor {
+      position: absolute;
+      top: 36px;
+      right: 76px;
+      z-index: 200;
+      transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .popover-anchor.hidden {
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-6px) scale(0.98);
+    }
+    .popover {
+      width: 350px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(40px) saturate(200%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%);
+      border: 1px solid var(--border-panel);
+      border-radius: 14px;
+      box-shadow: var(--shadow-popover);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+    }
+    .popover::before {
+      content: "";
+      position: absolute;
+      top: -6px;
+      right: 18px;
+      width: 12px;
+      height: 12px;
+      background: var(--bg-panel);
+      transform: rotate(45deg);
+      border-left: 1px solid var(--border-panel);
+      border-top: 1px solid var(--border-panel);
+    }
+
+    /* 头部栏 */
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 2px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: -0.2px;
+    }
+    .brand svg { fill: var(--accent); }
+    .status-badge {
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: 500;
+      background: var(--bg-subtle);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .status-badge.recording {
+      background: rgba(255, 59, 48, 0.12);
+      color: var(--accent-danger);
+    }
+    .status-badge.recording::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-danger);
+      animation: pulse 1s infinite;
+    }
+
+    /* 主录制卡片 */
+    .recorder-card {
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .recorder-action-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .time-wrap {
+      display: flex;
+      flex-direction: column;
+    }
+    .timer-display {
+      font-variant-numeric: tabular-nums;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      line-height: 1;
+      color: var(--text-main);
+    }
+    .timer-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .record-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid rgba(0, 0, 0, 0.08);
+      background: #ffffff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .record-btn:active { transform: scale(0.95); }
+    .record-btn-core {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--accent-danger);
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .record-btn.recording .record-btn-core {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+    }
+
+    /* 双声道 VU 电平表 */
+    .vu-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.025);
+      border-radius: 6px;
+      padding: 8px;
+    }
+    .vu-channel {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .vu-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    .vu-track {
+      height: 6px;
+      background: rgba(0, 0, 0, 0.07);
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+    }
+    .vu-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #34c759 70%, #ff9500 90%, #ff3b30 100%);
+      border-radius: 3px;
+      transition: width 0.12s ease-out;
+    }
+
+    /* 会话参数设置 */
+    .session-meta-box {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .meta-field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .meta-label {
+      color: var(--text-muted);
+      white-space: nowrap;
+      font-size: 11px;
+    }
+    .title-input {
+      flex: 1;
+      border: 1px solid var(--border-subtle);
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 5px;
+      padding: 4px 7px;
+      font-size: 12px;
+      color: var(--text-main);
+      outline: none;
+      font-family: inherit;
+    }
+    .title-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+    }
+    .path-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      justify-content: flex-end;
+    }
+    .path-text {
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11px;
+      color: var(--text-main);
+      background: var(--bg-subtle);
+      padding: 3px 6px;
+      border-radius: 4px;
+      direction: rtl;
+      text-align: left;
+    }
+    .btn-subtle {
+      border: 1px solid var(--border-subtle);
+      background: #ffffff;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      color: var(--text-main);
+    }
+    .btn-subtle:hover { background: var(--bg-subtle); }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 11px;
+      color: var(--text-main);
+    }
+    .checkbox-row input { accent-color: var(--accent); cursor: pointer; }
+
+    /* 最近录音栏 */
+    .recent-section {
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .recent-list {
+      max-height: 145px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .recent-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid transparent;
+      transition: background 0.12s ease;
+    }
+    .recent-item:hover {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: rgba(0, 0, 0, 0.05);
+    }
+    .recent-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      flex: 1;
+    }
+    .recent-title {
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .recent-tags {
+      display: flex;
+      gap: 6px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .play-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid var(--border-subtle);
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-main);
+      margin-left: 8px;
+      flex-shrink: 0;
+    }
+    .play-btn:hover { background: var(--bg-subtle); }
+    .play-btn.playing {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+    }
+
+    /* 路径选择模态窗 (Popover 内嵌层) */
+    .chooser-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 300;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+    }
+    .chooser-overlay.hidden { display: none; }
+    .chooser-header {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chooser-preset-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .chooser-preset-btn {
+      text-align: left;
+      font-size: 12px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.03);
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: inherit;
+    }
+    .chooser-preset-btn:hover { background: rgba(0, 122, 255, 0.08); border-color: var(--accent); }
+    .chooser-preset-btn.selected {
+      background: rgba(0, 122, 255, 0.12);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.9); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- macOS 顶部菜单栏 -->
+  <header class="macos-menubar">
+    <div class="menubar-items">
+      <button type="button" class="menu-icon-btn active" id="menuToggleBtn" aria-label="MeetingTape 菜单栏项" title="打开/关闭 MeetingTape 面板">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M12 8v8"></path>
+          <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
+        </svg>
+        <span class="record-indicator" id="menuRecordDot"></span>
+      </button>
+
+      <!-- 拟真系统时钟与状态 -->
+      <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; opacity:0.9;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="16" height="10" rx="2" ry="2"></rect><line x1="22" y1="11" x2="22" y2="13"></line></svg>
+        <span id="sysClock">10:24</span>
+      </span>
+    </div>
+  </header>
+
+  <!-- 菜单栏弹窗 (Popover) -->
+  <div class="popover-anchor" id="popoverAnchor">
+    <main class="popover" role="dialog" aria-label="MeetingTape 控制台">
+
+      <!-- 弹窗顶栏 -->
+      <div class="header-row">
+        <div class="brand">
+          <svg width="16" height="16" viewBox="0 0 24 24">
+            <rect x="2" y="4" width="20" height="16" rx="3" fill="currentColor" fill-opacity="0.1" stroke="currentColor" stroke-width="1.8"/>
+            <circle cx="8" cy="12" r="3" fill="currentColor"/>
+            <circle cx="16" cy="12" r="3" fill="currentColor"/>
+            <path d="M8 12h8" stroke="currentColor" stroke-width="1.8"/>
+          </svg>
+          <span>MeetingTape</span>
+        </div>
+        <div class="status-badge" id="statusBadge">待机就绪</div>
+      </div>
+
+      <!-- 录音主控制面板 -->
+      <section class="recorder-card">
+        <div class="recorder-action-row">
+          <div class="time-wrap">
+            <div class="timer-display" id="timerDisplay">00:00</div>
+          </div>
+          <button type="button" class="record-btn" id="recordToggleBtn" aria-label="开始录音" title="录音开关">
+            <div class="record-btn-core"></div>
+          </button>
+        </div>
+
+        <!-- 实时电平表 (双源立体声) -->
+        <div class="vu-grid">
+          <div class="vu-channel">
+            <div class="vu-label">
+              <span>L 系统音频</span>
+              <span id="vuValL">-∞ dB</span>
+            </div>
+            <div class="vu-track">
+              <div class="vu-fill" id="vuFillL"></div>
+            </div>
+          </div>
+          <div class="vu-channel">
+            <div class="vu-label">
+              <span>R 麦克风</span>
+              <span id="vuValR">-∞ dB</span>
+            </div>
+            <div class="vu-track">
+              <div class="vu-fill" id="vuFillR"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 会话参数 -->
+      <section class="session-meta-box">
+        <div class="meta-field">
+          <label class="meta-label" for="sessionTitle">录音标题</label>
+          <input type="text" id="sessionTitle" class="title-input" value="产品晨会讨论" placeholder="输入录音文件标题">
+        </div>
+
+        <div class="meta-field">
+          <span class="meta-label">保存位置</span>
+          <div class="path-row">
+            <span class="path-text" id="pathDisplay">~/Movies/MeetingTape</span>
+            <button type="button" class="btn-subtle" id="changePathBtn">更改...</button>
+          </div>
+        </div>
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="keepRawCheckbox">
+          <span>保留原始麦克风</span>
+        </label>
+      </section>
+
+      <!-- 最近录音 -->
+      <section class="recent-section">
+        <div class="section-title">
+          <span>最近录音</span>
+          <span style="font-size:10px; font-weight:normal;" id="recentCountText">2 项</span>
+        </div>
+        <div class="recent-list" id="recentList">
+          <!-- 动态渲染录音条目 -->
+        </div>
+      </section>
+
+      <!-- 内嵌文件夹选择器 Sheet -->
+      <div class="chooser-overlay hidden" id="chooserOverlay">
+        <div class="chooser-header">
+          <span>选择录音存储目录</span>
+          <button type="button" class="btn-subtle" id="closeChooserBtn">完成</button>
+        </div>
+        <div class="chooser-preset-list" id="presetList">
+          <button type="button" class="chooser-preset-btn selected" data-path="~/Movies/MeetingTape">
+            📁 ~/Movies/MeetingTape (默认)
+          </button>
+          <button type="button" class="chooser-preset-btn" data-path="~/Desktop/会议录音">
+            🖥️ ~/Desktop/会议录音
+          </button>
+          <button type="button" class="chooser-preset-btn" data-path="~/Documents/Recordings">
+            📑 ~/Documents/Recordings
+          </button>
+        </div>
+        <div style="font-size:10px; color:var(--text-muted); margin-top:auto;">
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- 桥接通信脚本 -->
+  <script src="../bridge.js"></script>
+
+  <script>
+    // --- 状态定义与初始化 ---
+    const state = {
+      variant: 'B',
+      isPopoverOpen: true,
+      status: 'idle', // 'idle' | 'recording'
+      seconds: 0,
+      title: '产品晨会讨论',
+      outputDirectory: '~/Movies/MeetingTape',
+      keepRaw: false,
+      isPlaying: false,
+      playingId: null,
+      recentRecordings: [
+        { id: 'rec-1', title: '架构方案评审', duration: '18:24', time: '10:05', file: '../assets/sample-stereo.m4a' },
+        { id: 'rec-2', title: '双周需求对齐', duration: '05:12', time: '昨天', file: '../assets/sample-stereo.m4a' }
+      ]
+    };
+
+    // 演示音频对象
+    const audioPlayer = new Audio('../assets/sample-stereo.m4a');
+    let timerInterval = null;
+    let vuInterval = null;
+
+    // --- DOM 元素引用 ---
+    const popoverAnchor = document.getElementById('popoverAnchor');
+    const menuToggleBtn = document.getElementById('menuToggleBtn');
+    const menuRecordDot = document.getElementById('menuRecordDot');
+    const recordToggleBtn = document.getElementById('recordToggleBtn');
+    const timerDisplay = document.getElementById('timerDisplay');
+    const statusBadge = document.getElementById('statusBadge');
+    const vuFillL = document.getElementById('vuFillL');
+    const vuFillR = document.getElementById('vuFillR');
+    const vuValL = document.getElementById('vuValL');
+    const vuValR = document.getElementById('vuValR');
+    const sessionTitle = document.getElementById('sessionTitle');
+    const pathDisplay = document.getElementById('pathDisplay');
+    const changePathBtn = document.getElementById('changePathBtn');
+    const keepRawCheckbox = document.getElementById('keepRawCheckbox');
+    const recentList = document.getElementById('recentList');
+    const recentCountText = document.getElementById('recentCountText');
+    const chooserOverlay = document.getElementById('chooserOverlay');
+    const closeChooserBtn = document.getElementById('closeChooserBtn');
+    const presetList = document.getElementById('presetList');
+
+    // --- 状态上报 ---
+    function syncAndReport() {
+      if (typeof window.reportState === 'function') {
+        window.reportState({
+          variant: state.variant,
+          status: state.status,
+          seconds: state.seconds,
+          title: state.title,
+          outputDirectory: state.outputDirectory,
+          keepRaw: state.keepRaw,
+          isPopoverOpen: state.isPopoverOpen,
+          isPlaying: state.isPlaying
+        });
+      }
+    }
+
+    // --- 计时器格式化 ---
+    function formatTime(totalSec) {
+      const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
+      const s = (totalSec % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    // --- 切换菜单栏 Popover ---
+    menuToggleBtn.addEventListener('click', () => {
+      state.isPopoverOpen = !state.isPopoverOpen;
+      popoverAnchor.classList.toggle('hidden', !state.isPopoverOpen);
+      menuToggleBtn.classList.toggle('active', state.isPopoverOpen);
+      menuToggleBtn.setAttribute('aria-expanded', String(state.isPopoverOpen));
+      syncAndReport();
+    });
+
+    // --- 标题与偏好输入监听 ---
+    sessionTitle.addEventListener('input', (e) => {
+      state.title = e.target.value.trim() || '未命名录音';
+      syncAndReport();
+    });
+
+    keepRawCheckbox.addEventListener('change', (e) => {
+      state.keepRaw = e.target.checked;
+      syncAndReport();
+    });
+
+    // --- 录制触发逻辑 ---
+    function startRecording() {
+      audioPlayer.pause();
+      state.isPlaying = false;
+      state.playingId = null;
+      renderRecentList();
+      state.status = 'recording';
+      state.seconds = 0;
+      timerDisplay.textContent = '00:00';
+      recordToggleBtn.setAttribute('aria-label', '停止录音');
+      [sessionTitle, changePathBtn, keepRawCheckbox].forEach(control => control.disabled = true);
+      recordToggleBtn.classList.add('recording');
+      menuRecordDot.classList.add('visible');
+      statusBadge.textContent = '正在录音';
+      statusBadge.classList.add('recording');
+
+      // 计时器模拟
+      timerInterval = setInterval(() => {
+        state.seconds++;
+        timerDisplay.textContent = formatTime(state.seconds);
+        syncAndReport();
+      }, 1000);
+
+      // VU 表动态模拟
+      vuInterval = setInterval(() => {
+        const leftVol = Math.floor(Math.random() * 55) + 35;
+        const rightVol = Math.floor(Math.random() * 65) + 25;
+        vuFillL.style.width = leftVol + '%';
+        vuFillR.style.width = rightVol + '%';
+        vuValL.textContent = `-${Math.round((100 - leftVol) * 0.4)} dB`;
+        vuValR.textContent = `-${Math.round((100 - rightVol) * 0.4)} dB`;
+      }, 140);
+
+      syncAndReport();
+    }
+
+    function stopRecording() {
+      state.status = 'idle';
+      recordToggleBtn.setAttribute('aria-label', '开始录音');
+      [sessionTitle, changePathBtn, keepRawCheckbox].forEach(control => control.disabled = false);
+      recordToggleBtn.classList.remove('recording');
+      menuRecordDot.classList.remove('visible');
+      statusBadge.textContent = '已保存';
+      statusBadge.classList.remove('recording');
+
+      clearInterval(timerInterval);
+      clearInterval(vuInterval);
+
+      vuFillL.style.width = '0%';
+      vuFillR.style.width = '0%';
+      vuValL.textContent = '-∞ dB';
+      vuValR.textContent = '-∞ dB';
+
+      // 归档到最近录音列表
+      const finalSec = state.seconds || 1;
+      const newRec = {
+        id: 'rec-' + Date.now(),
+        title: state.title,
+        duration: formatTime(finalSec),
+        time: '刚刚',
+        file: '../assets/sample-stereo.m4a'
+      };
+      state.recentRecordings.unshift(newRec);
+      renderRecentList();
+
+      state.seconds = 0;
+      timerDisplay.textContent = '00:00';
+      syncAndReport();
+
+      setTimeout(() => {
+        if (state.status === 'idle') {
+          statusBadge.textContent = '待机就绪';
+        }
+      }, 2500);
+    }
+
+    recordToggleBtn.addEventListener('click', () => {
+      if (state.status === 'idle') {
+        startRecording();
+      } else {
+        stopRecording();
+      }
+    });
+
+    // --- 音频试听控制 ---
+    async function togglePlayback(rec) {
+      if (state.status === 'recording') return;
+      if (state.playingId === rec.id) {
+        audioPlayer.pause();
+        audioPlayer.currentTime = 0;
+        state.isPlaying = false;
+        state.playingId = null;
+      } else {
+        audioPlayer.src = rec.file;
+        await audioPlayer.play();
+        state.isPlaying = true;
+        state.playingId = rec.id;
+      }
+      renderRecentList();
+      syncAndReport();
+    }
+
+    audioPlayer.addEventListener('ended', () => {
+      state.isPlaying = false;
+      state.playingId = null;
+      renderRecentList();
+      syncAndReport();
+    });
+
+    // --- 渲染最近录音列表 ---
+    function renderRecentList() {
+      recentCountText.textContent = `${state.recentRecordings.length} 项`;
+      recentList.innerHTML = '';
+      state.recentRecordings.forEach((rec) => {
+        const item = document.createElement('div');
+        item.className = 'recent-item';
+
+        const isThisPlaying = state.isPlaying && state.playingId === rec.id;
+
+        item.innerHTML = `
+          <div class="recent-info">
+            <div class="recent-title" title="${rec.title}">${rec.title}</div>
+            <div class="recent-tags">
+              <span>${rec.duration}</span>
+              <span>•</span>
+              <span>${rec.time}</span>
+              <span>•</span>
+              <span>L:系统 R:麦克</span>
+            </div>
+          </div>
+          <button type="button" class="play-btn ${isThisPlaying ? 'playing' : ''}" aria-label="${isThisPlaying ? '暂停' : '播放'}" title="${isThisPlaying ? '暂停' : '播放'}">
+            ${isThisPlaying ? `
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+              </svg>
+            ` : `
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+            `}
+          </button>
+        `;
+
+        item.querySelector('.play-btn').addEventListener('click', () => {
+          togglePlayback(rec);
+        });
+
+        recentList.appendChild(item);
+      });
+    }
+
+    // --- 路径选择器内嵌交互 ---
+    changePathBtn.addEventListener('click', () => {
+      chooserOverlay.classList.remove('hidden');
+    });
+
+    closeChooserBtn.addEventListener('click', () => {
+      chooserOverlay.classList.add('hidden');
+    });
+
+    presetList.querySelectorAll('.chooser-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        presetList.querySelectorAll('.chooser-preset-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        state.outputDirectory = btn.getAttribute('data-path');
+        pathDisplay.textContent = state.outputDirectory;
+        chooserOverlay.classList.add('hidden');
+        syncAndReport();
+      });
+    });
+
+    // 拟真时钟更新
+    function updateClock() {
+      const now = new Date();
+      const hrs = now.getHours().toString().padStart(2, '0');
+      const min = now.getMinutes().toString().padStart(2, '0');
+      const clockEl = document.getElementById('sysClock');
+      if (clockEl) clockEl.textContent = `${hrs}:${min}`;
+    }
+    updateClock();
+    setInterval(updateClock, 30000);
+
+    // 初始化渲染与上报
+    renderRecentList();
+    syncAndReport();
+  </script>
+</body>
+</html>
