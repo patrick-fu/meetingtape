@@ -83,7 +83,8 @@ ninja -C "$BUILD" -j 4 \
   subprojects/abseil-cpp-20240722.0/libabsl_time.a \
   subprojects/abseil-cpp-20240722.0/libabsl_types.a
 
-bridge_object="$BUILD/meetingtape_apm.o"
+mkdir -p "$OUT"
+bridge_object="$OUT/meetingtape_apm.o"
 clang++ -c \
   -std=c++17 \
   -O3 \
@@ -97,11 +98,11 @@ clang++ -c \
   -I "$SRC/subprojects/abseil-cpp-20240722.0" \
   -o "$bridge_object" \
   "$ROOT/Sources/APMBridge/apm_bridge.cpp"
-libtool -static -o "$BUILD/libmeetingtape_apm.a" "$bridge_object"
+libtool -static -o "$OUT/libmeetingtape_apm.a" "$bridge_object"
 
 rm -rf "$LIB"
 mkdir -p "$LIB"
-cp "$BUILD/libmeetingtape_apm.a" "$LIB/"
+cp "$OUT/libmeetingtape_apm.a" "$LIB/"
 cp "$BUILD/webrtc/modules/audio_processing/libwebrtc-audio-processing-2.a" "$LIB/"
 cp "$BUILD/subprojects/abseil-cpp-20240722.0"/libabsl_base.a \
   "$BUILD/subprojects/abseil-cpp-20240722.0"/libabsl_flags.a \

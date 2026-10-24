@@ -26,7 +26,7 @@ bool digital_3a_enabled(const webrtc::AudioProcessing::Config &config) {
            !config.gain_controller2.input_volume_controller.enabled;
 }
 
-}  // namespace
+}
 
 struct meetingtape_apm {
     rtc::scoped_refptr<webrtc::AudioProcessing> processor;

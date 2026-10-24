@@ -8,9 +8,7 @@ case "$CONFIGURATION" in
     *) echo "Usage: scripts/build-local.sh [debug|release]" >&2; exit 1 ;;
 esac
 cd "$ROOT"
-if [[ ! -f .build/apm/lib/libmeetingtape_apm.a ]]; then
-    ./scripts/build-apm.sh
-fi
+./scripts/build-apm.sh
 IDENTITY="${MEETINGTAPE_SIGN_IDENTITY:-}"
 if [[ -z "$IDENTITY" ]]; then
     IDENTITY="$(/usr/bin/security find-identity -v -p codesigning | awk 'index($0,"Developer ID Application:") && index($0,"(9N7UKH59LC)") {split($0,a,"\""); print a[2]; exit}')"
@@ -19,9 +17,10 @@ if [[ -z "$IDENTITY" ]]; then
     echo "A valid Developer ID Application identity for Team 9N7UKH59LC is required." >&2
     exit 1
 fi
+BUILD_DIRECTORY="$(swift build -c "$CONFIGURATION" --show-bin-path)"
+rm -f "$BUILD_DIRECTORY/meetingtape"
 swift build -c "$CONFIGURATION" --product meetingtape \
     -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$ROOT/Resources/Info.plist"
-BUILD_DIRECTORY="$(swift build -c "$CONFIGURATION" --show-bin-path)"
 DESTINATION="$ROOT/.build/local/$CONFIGURATION"
 mkdir -p "$DESTINATION"
 cp "$BUILD_DIRECTORY/meetingtape" "$DESTINATION/meetingtape"
