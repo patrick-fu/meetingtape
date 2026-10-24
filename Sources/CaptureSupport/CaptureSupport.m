@@ -188,11 +188,7 @@ static OSStatus MTSystemCallback(AudioObjectID device, const AudioTimeStamp *now
         *error = startError.localizedDescription ?: @"Start default microphone failed";
         return NO;
     }
-    AudioDeviceID actualDevice = kAudioObjectUnknown;
-    UInt32 size = sizeof(actualDevice);
-    OSStatus status = AudioUnitGetProperty(input.audioUnit, kAudioOutputUnitProperty_CurrentDevice,
-                                           kAudioUnitScope_Global, 0, &actualDevice, &size);
-    if (status != noErr || actualDevice != inputDevice || MTDefaultInput() != inputDevice) {
+    if (MTDefaultInput() != inputDevice) {
         *error = @"Default microphone changed while capture was starting";
         return NO;
     }

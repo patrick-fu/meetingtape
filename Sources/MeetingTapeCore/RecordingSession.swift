@@ -233,10 +233,12 @@ public final class RecordingSession: @unchecked Sendable {
     }
 
     private func render(until target: Int64, health: CaptureHealth) throws {
-        while nextFrame + 480 <= target {
-            let audio = timeline.render(at: nextFrame, count: 480)
+        try timeline.prepare(until: target)
+        while nextFrame < target {
+            let count = Int(min(target - nextFrame, 480 - nextFrame % 480))
+            let audio = timeline.render(at: nextFrame, count: count)
             let beginning = Double(nextFrame) / 48_000
-            let end = beginning + 0.01
+            let end = Double(nextFrame + Int64(count)) / 48_000
             if !audio.hasSystem {
                 addInterval(start: beginning, end: end, source: .system,
                             reason: health.systemReason ?? "system audio frames unavailable", degraded: false)
@@ -248,22 +250,25 @@ public final class RecordingSession: @unchecked Sendable {
             if audio.hasAnyAudio {
                 var mic = audio.microphone
                 if audio.hasMicrophone {
-                    if audio.hasSystem {
+                    if audio.hasSystem && count == 480 {
                         let processed = speech.process(microphone: mic, left: audio.systemLeft, right: audio.systemRight)
                         mic = processed.samples
                         if let reason = processed.reason {
                             addInterval(start: beginning, end: end, source: .microphone, reason: reason, degraded: true)
                         }
-                    } else {
+                    } else if !audio.hasSystem {
                         addInterval(start: beginning, end: end, source: .microphone,
                                     reason: "echo-cancellation reference unavailable", degraded: true)
+                    } else {
+                        addInterval(start: beginning, end: end, source: .microphone,
+                                    reason: "short speech-processing block", degraded: true)
                     }
                 } else if audio.hasAnyMicrophone {
                     addInterval(start: beginning, end: end, source: .microphone,
                                 reason: "microphone frame gap", degraded: true)
                 }
-                var stereo = [Float](repeating: 0, count: 960)
-                for index in 0..<480 {
+                var stereo = [Float](repeating: 0, count: count * 2)
+                for index in 0..<count {
                     stereo[index * 2] = (audio.systemLeft[index] + audio.systemRight[index]) * 0.5
                     stereo[index * 2 + 1] = mic[index]
                 }
@@ -271,7 +276,7 @@ public final class RecordingSession: @unchecked Sendable {
                                   rawMicrophone: configuration!.keepRawMicrophone ? audio.microphone : nil,
                                   at: nextFrame)
             }
-            nextFrame += 480
+            nextFrame += Int64(count)
         }
     }
 
@@ -337,7 +342,8 @@ public final class RecordingSession: @unchecked Sendable {
                 capture.stop()
                 try ingest()
                 if let fatal = capture.health().fatalError { throw MeetingTapeError.failure(fatal) }
-                let end = Int64(clock.elapsed * 48_000) / 480 * 480
+                try timeline.flush()
+                let end = Int64(clock.elapsed * 48_000)
                 try render(until: end, health: capture.health())
                 report?.elapsedSeconds = Double(end) / 48_000
             } else {
@@ -388,8 +394,9 @@ public final class RecordingSession: @unchecked Sendable {
             try ingest()
             capture.stop()
             try ingest()
+            try timeline.flush()
             let now = clock.elapsed
-            try render(until: Int64(now * 48_000) / 480 * 480, health: capture.health())
+            try render(until: Int64(now * 48_000), health: capture.health())
             sleepingSince = now
             bothUnavailableSince = nil
             report?.state = .interrupted
@@ -405,7 +412,7 @@ public final class RecordingSession: @unchecked Sendable {
         guard let beginning = sleepingSince, report?.state == .interrupted else { return }
         let now = clock.elapsed
         addInterval(start: beginning, end: now, source: nil, reason: "system sleep", degraded: false)
-        nextFrame = Int64(now * 48_000) / 480 * 480
+        nextFrame = Int64(now * 48_000)
         timeline = CaptureTimeline()
         clock.beginEpoch()
         speech.reset()

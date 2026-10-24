@@ -48,6 +48,12 @@ private final class ConverterInput: @unchecked Sendable {
 
     init(_ buffer: AVAudioPCMBuffer) { self.buffer = buffer }
 
+    var wasSupplied: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return supplied
+    }
+
     func next(_ status: UnsafeMutablePointer<AVAudioConverterInputStatus>) -> AVAudioBuffer? {
         lock.lock()
         defer { lock.unlock() }
@@ -63,6 +69,8 @@ private final class TimelineTrack {
     private var converter: AVAudioConverter?
     private var formatKey = ""
     private var previousEnd: Int64?
+    private var pendingFrames = 0.0
+    private var lastInput: ConverterInput?
 
     func insert(_ packet: CapturedAudio, frame: Int64) throws {
         guard packet.channels == 1 || packet.channels == 2,
@@ -73,7 +81,9 @@ private final class TimelineTrack {
         }
         let count = packet.samples.count / packet.channels
         let key = "\(packet.generation):\(packet.sampleRate):\(packet.channels)"
-        if key != formatKey {
+        let discontinuity = previousEnd.map { abs(Double(frame) - pendingFrames - Double($0)) > 48 } ?? false
+        if key != formatKey || discontinuity {
+            try flush()
             let input = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: packet.sampleRate,
                                       channels: AVAudioChannelCount(packet.channels), interleaved: false)!
             let output = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 48_000,
@@ -81,12 +91,13 @@ private final class TimelineTrack {
             guard let made = AVAudioConverter(from: input, to: output) else {
                 throw MeetingTapeError.failure("cannot convert captured audio to 48000 Hz")
             }
-            made.primeMethod = .none
+            made.primeMethod = .normal
             made.sampleRateConverterQuality = AVAudioQuality.max.rawValue
             converter = made
             formatKey = key
             previousEnd = nil
         }
+        if previousEnd == nil { previousEnd = frame }
         let converter = converter!
         guard let input = AVAudioPCMBuffer(pcmFormat: converter.inputFormat, frameCapacity: AVAudioFrameCount(count)),
               let inputChannels = input.floatChannelData else {
@@ -99,27 +110,68 @@ private final class TimelineTrack {
             }
         }
         let capacity = AVAudioFrameCount(ceil(Double(count) * 48_000 / packet.sampleRate) + 128)
+        let inputSource = ConverterInput(input)
+        defer { if inputSource.wasSupplied { lastInput = inputSource } }
+        pendingFrames += Double(count) * 48_000 / packet.sampleRate
+        for _ in 0..<64 {
+            let result = try convert(input: inputSource, capacity: capacity)
+            if result == .inputRanDry {
+                guard inputSource.wasSupplied else {
+                    throw MeetingTapeError.failure("audio converter did not consume captured input")
+                }
+                return
+            }
+            if result == .endOfStream {
+                throw MeetingTapeError.failure("audio converter ended before capture finished")
+            }
+        }
+        throw MeetingTapeError.failure("audio converter exceeded its bounded conversion budget")
+    }
+
+    private func convert(input: ConverterInput?, capacity: AVAudioFrameCount) throws -> AVAudioConverterOutputStatus {
+        let converter = converter!
         guard let output = AVAudioPCMBuffer(pcmFormat: converter.outputFormat, frameCapacity: capacity) else {
             throw MeetingTapeError.failure("cannot allocate converted audio buffer")
         }
-        let inputSource = ConverterInput(input)
         var error: NSError?
         let result = converter.convert(to: output, error: &error) { _, status in
-            inputSource.next(status)
+            if let input { return input.next(status) }
+            status.pointee = .endOfStream
+            return nil
         }
         guard result != .error, error == nil, let data = output.floatChannelData else {
             throw MeetingTapeError.failure("audio sample-rate conversion failed: \(error?.localizedDescription ?? "unknown error")")
         }
         let length = Int(output.frameLength)
-        guard length > 0 else { return }
-        var start = frame
-        if let previousEnd, abs(start - previousEnd) <= 48 { start = previousEnd }
-        let values = (0..<packet.channels).map { Array(UnsafeBufferPointer(start: data[$0], count: length)) }
-        chunks.append(TimelineChunk(start: start, channels: values))
-        previousEnd = start + Int64(length)
-        guard chunks.reduce(0, { $0 + $1.count }) <= 96_000 else {
-            throw MeetingTapeError.failure("audio alignment queue exceeded two seconds")
+        if length > 0 {
+            let values = (0..<Int(output.format.channelCount)).map { Array(UnsafeBufferPointer(start: data[$0], count: length)) }
+            chunks.append(TimelineChunk(start: previousEnd!, channels: values))
+            previousEnd! += Int64(length)
+            pendingFrames -= Double(length)
+            guard chunks.reduce(0, { $0 + $1.count }) <= 96_000 else {
+                throw MeetingTapeError.failure("audio alignment queue exceeded two seconds")
+            }
         }
+        return result
+    }
+
+    func flush() throws {
+        guard converter != nil else { return }
+        for _ in 0..<64 {
+            if try convert(input: nil, capacity: 8192) == .endOfStream {
+                converter = nil
+                formatKey = ""
+                previousEnd = nil
+                pendingFrames = 0
+                lastInput = nil
+                return
+            }
+        }
+        throw MeetingTapeError.failure("audio converter did not finish within its bounded flush budget")
+    }
+
+    func prepare(until frame: Int64) throws {
+        if let previousEnd, frame > previousEnd { try flush() }
     }
 
     func render(at frame: Int64, count: Int) -> (left: [Float], right: [Float], complete: Bool, present: Bool) {
@@ -151,6 +203,16 @@ final class CaptureTimeline {
 
     func insert(_ packet: CapturedAudio, frame: Int64) throws {
         try (packet.source == .system ? system : microphone).insert(packet, frame: frame)
+    }
+
+    func prepare(until frame: Int64) throws {
+        try system.prepare(until: frame)
+        try microphone.prepare(until: frame)
+    }
+
+    func flush() throws {
+        try system.flush()
+        try microphone.flush()
     }
 
     func render(at frame: Int64, count: Int) -> (systemLeft: [Float], systemRight: [Float], microphone: [Float], hasSystem: Bool, hasMicrophone: Bool, hasAnyAudio: Bool, hasAnyMicrophone: Bool) {

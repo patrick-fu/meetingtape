@@ -155,6 +155,7 @@ def offline_recovery(run, binary, root, out):
 def live_recording(run, binary, out, seconds):
     started = False
     try:
+        start_bound = time.monotonic()
         run.command([binary, "start", "--out", out, "--keep-raw"], timeout=40)
         started = True
         time.sleep(seconds)
@@ -163,7 +164,8 @@ def live_recording(run, binary, out, seconds):
         pid = snapshot["processID"]
         process = run.command(["/bin/ps", "-ww", "-p", str(pid), "-o", "command="]).stdout.strip()
         assert process.startswith(str(binary) + " __host ")
-        assert "--ready-file " + run.env["MEETINGTAPE_STATE_DIR"] + "/" in process
+        ready_path = Path(process.rsplit(" --ready-file ", 1)[1].removesuffix(" --keep-raw"))
+        assert ready_path.parent.resolve(strict=True) == Path(run.env["MEETINGTAPE_STATE_DIR"]).resolve(strict=True)
         os.kill(pid, signal.SIGKILL)
         started = False
         deadline = time.monotonic() + 10
@@ -174,6 +176,7 @@ def live_recording(run, binary, out, seconds):
             time.sleep(0.1)
         else:
             raise RuntimeError("the owned recording host did not exit after SIGKILL")
+        exit_bound = time.monotonic()
         directory = Path(snapshot["recoveryPath"])
         manifest = json.loads((directory / "manifest.json").read_text())
         assert manifest["snapshot"]["sessionID"] == snapshot["sessionID"]
@@ -182,6 +185,9 @@ def live_recording(run, binary, out, seconds):
         observed_tail = snapshot["elapsedSeconds"] - last_audio / 48000
         assert -0.25 <= observed_tail <= 5, observed_tail
         result["observed_tail_seconds"] = observed_tail
+        tail_upper_bound = exit_bound - start_bound - last_audio / 48000
+        assert 0 <= tail_upper_bound <= 5, tail_upper_bound
+        result["tail_upper_bound_seconds"] = tail_upper_bound
         return result
     finally:
         if started:
