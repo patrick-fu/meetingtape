@@ -68,6 +68,21 @@ if [[ -z "$abseil_patch" ]] || [[ "$(sha256_file "$abseil_patch")" != "$ABSEIL_P
   exit 1
 fi
 
+python3 - "$tarball" "$STABLE" "$abseil_tar" "$SRC/subprojects" <<'PY'
+from pathlib import Path
+import sys
+import tarfile
+
+for archive, destination in zip(sys.argv[1::2], sys.argv[2::2]):
+    with tarfile.open(archive) as bundle:
+        missing = [entry for entry in bundle.getmembers()
+                   if entry.isfile() and not (Path(destination) / entry.name).is_file()]
+        if missing:
+            print(f"Restoring {len(missing)} missing source files from {Path(archive).name}")
+            for entry in missing:
+                bundle.extract(entry, destination)
+PY
+
 ninja -C "$BUILD" -j 4 \
   webrtc/modules/audio_processing/libwebrtc-audio-processing-2.a \
   subprojects/abseil-cpp-20240722.0/libabsl_base.a \
