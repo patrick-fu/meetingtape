@@ -48,15 +48,36 @@ struct HostPaths: Sendable {
 final class SessionLock {
     private let descriptor: Int32
 
-    init(directory: URL, name: String) throws {
+    init(directory: URL, name: String, wait: Bool = false) throws {
         descriptor = open(directory.appendingPathComponent(name).path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
         guard descriptor >= 0 else { throw HostFailure("cannot open the session lock") }
-        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+        let mode = LOCK_EX | (wait ? 0 : LOCK_NB)
+        var result = flock(descriptor, mode)
+        while result != 0 && errno == EINTR { result = flock(descriptor, mode) }
+        guard result == 0 else {
             throw HostFailure("another recording session is starting or active")
         }
     }
 
     deinit { close(descriptor) }
+}
+
+enum SessionCache {
+    static func store(_ snapshot: SessionSnapshot, paths: HostPaths, replacing sessionID: String? = nil) throws {
+        let lock = try SessionLock(directory: paths.directory, name: "snapshot.lock", wait: true)
+        defer { withExtendedLifetime(lock) {} }
+        let file = paths.directory.appendingPathComponent("last-session.json")
+        let previous = (try? Data(contentsOf: file)).flatMap {
+            try? JSONDecoder().decode(SessionSnapshot.self, from: $0)
+        }
+        if let sessionID {
+            guard previous?.sessionID == sessionID else { return }
+        }
+        if previous?.sessionID == snapshot.sessionID, previous?.state == .completed, snapshot.state != .completed {
+            return
+        }
+        try JSONEncoder().encode(snapshot).write(to: file, options: .atomic)
+    }
 }
 
 enum HostTransport {

@@ -30,13 +30,16 @@ enum HelpText {
                               recording file(s). It must already exist and be
                               writable; the CLI never creates it for you.
           --keep-raw          Also keep the raw microphone track as a separate
-                              file next to the main stereo file.
+                              mono PCM CAF next to the main stereo file.
           -h, --help          Show this help.
 
         Channel layout of the main file:
           left   system audio, captured raw
           right  microphone audio with echo cancellation, noise suppression
                  and automatic gain control applied
+
+        Speech-processing failures preserve raw microphone audio in the right
+        channel. Use status --json to inspect degraded intervals and reasons.
 
         The command returns only after both audio sources are ready. The recording
         continues in a background host after this command exits. Only one session

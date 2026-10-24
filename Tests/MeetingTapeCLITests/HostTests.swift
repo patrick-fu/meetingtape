@@ -127,6 +127,27 @@ private func isolatedPaths() throws -> HostPaths {
     #expect(retained.recoveryPath == "/preserved/session.recovery")
 }
 
+@Test func recoveredSessionCannotReturnToFailedButNewSessionCanReplaceIt() throws {
+    let paths = try isolatedPaths()
+    defer { try? FileManager.default.removeItem(at: paths.directory) }
+    var completed = SessionSnapshot(sessionID: "recovered", recoveryPath: "/recovery")
+    completed.state = .completed
+    completed.outputPath = "/saved.m4a"
+    try SessionCache.store(completed, paths: paths)
+    var late = completed
+    late.state = .failed
+    try SessionCache.store(late, paths: paths)
+    let file = paths.directory.appendingPathComponent("last-session.json")
+    let retained = try JSONDecoder().decode(SessionSnapshot.self, from: Data(contentsOf: file))
+    #expect(retained.state == .completed)
+    #expect(retained.outputPath == "/saved.m4a")
+    late.sessionID = "new-session"
+    try SessionCache.store(late, paths: paths)
+    let replacement = try JSONDecoder().decode(SessionSnapshot.self, from: Data(contentsOf: file))
+    #expect(replacement.sessionID == "new-session")
+    #expect(replacement.state == .failed)
+}
+
 @Test func recoverRoutesArgumentsAndReportsFinalOutput() {
     let result = RecoverCommand.run(["/recovery", "--out", "/destination"], recover: { source, destination in
         #expect(source == "/recovery")

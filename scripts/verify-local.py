@@ -2,6 +2,7 @@
 """Verify a signed local CLI. Live recording requires --record."""
 import argparse
 import array
+import fcntl
 import hashlib
 import json
 import math
@@ -144,7 +145,9 @@ def offline_recovery(run, binary, root, out):
     previous = dict(manifest["snapshot"], state="failed", failureReason="verification crash")
     cache.write_text(json.dumps(previous))
     assert json.loads(run.command([binary, "status", "--json"]).stdout)["state"] == "failed"
-    result = recover(run, binary, source, out, manifest)
+    with (cache.parent / "startup.lock").open("a") as startup:
+        fcntl.flock(startup, fcntl.LOCK_EX)
+        result = recover(run, binary, source, out, manifest)
     assert json.loads(run.command([binary, "status", "--json"]).stdout)["state"] == "idle"
     return result
 

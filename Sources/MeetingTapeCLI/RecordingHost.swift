@@ -36,7 +36,7 @@ final class RecordingHost: @unchecked Sendable {
         guard snapshot.state == .recording, snapshot.systemAvailable, snapshot.microphoneAvailable else {
             throw HostFailure(snapshot.failureReason ?? "audio capture did not become ready")
         }
-        try JSONEncoder().encode(snapshot).write(to: paths.directory.appendingPathComponent("last-session.json"), options: .atomic)
+        try SessionCache.store(snapshot, paths: paths)
         return snapshot
     }
 
@@ -44,16 +44,14 @@ final class RecordingHost: @unchecked Sendable {
         let requests = DispatchGroup()
         let ending = HostEnding()
         while !ending.value {
+            if session.snapshot().state == .failed { _ = finish(); break }
             var event = pollfd(fd: listener, events: Int16(POLLIN), revents: 0)
             let result = poll(&event, 1, 100)
             if result < 0 {
                 if errno == EINTR { continue }
                 break
             }
-            if result == 0 {
-                if session.snapshot().state == .failed { _ = finish(); break }
-                continue
-            }
+            if result == 0 { continue }
             guard event.revents & Int16(POLLIN) != 0 else { break }
             let client = accept(listener, nil, nil)
             if client < 0 { continue }
@@ -87,12 +85,13 @@ final class RecordingHost: @unchecked Sendable {
         do {
             let result = try session.stop()
             let response = HostResponse(snapshot: result, error: result.state == .completed ? nil : result.failureReason ?? "recording finalization failed")
-            try? JSONEncoder().encode(result).write(to: paths.directory.appendingPathComponent("last-session.json"), options: .atomic)
+            try? SessionCache.store(result, paths: paths)
             finalResponse = response
             return response
         } catch {
-            let response = HostResponse(snapshot: session.snapshot(), error: String(describing: error))
-            try? JSONEncoder().encode(response.snapshot).write(to: paths.directory.appendingPathComponent("last-session.json"), options: .atomic)
+            let snapshot = session.snapshot()
+            let response = HostResponse(snapshot: snapshot, error: String(describing: error))
+            try? SessionCache.store(snapshot, paths: paths)
             finalResponse = response
             return response
         }

@@ -21,16 +21,8 @@ struct CommandServices {
 enum HostClient {
     static func recover(_ directory: String, _ outputDirectory: String) throws -> SessionSnapshot {
         let snapshot = try RecordingRecovery.recover(directory: directory, outputDirectory: outputDirectory)
-        if let paths = try? HostPaths(),
-           let startup = try? SessionLock(directory: paths.directory, name: "startup.lock"),
-           let session = try? SessionLock(directory: paths.directory, name: "session.lock") {
-            defer { withExtendedLifetime((startup, session)) {} }
-            let cache = paths.directory.appendingPathComponent("last-session.json")
-            if let data = try? Data(contentsOf: cache),
-               let previous = try? JSONDecoder().decode(SessionSnapshot.self, from: data),
-               previous.sessionID == snapshot.sessionID {
-                try? JSONEncoder().encode(snapshot).write(to: cache, options: .atomic)
-            }
+        if let paths = try? HostPaths() {
+            try? SessionCache.store(snapshot, paths: paths, replacing: snapshot.sessionID)
         }
         return snapshot
     }
