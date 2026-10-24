@@ -140,7 +140,7 @@ final class AudioCapture {
     private func refresh(_ capture: inout SourceCapture) {
         if let stream = capture.stream {
             let status = MTStreamPoll(stream)
-            guard MTStreamNeedsRefresh(stream) || status.secondsSinceCallback > 3 else { return }
+            guard MTStreamNeedsRefresh(stream) || (capture.source == .microphone && status.secondsSinceCallback > 3) else { return }
             close(&capture, retainQueuedAudio: false)
             if latchedFatal != nil { return }
         }
@@ -180,8 +180,10 @@ final class AudioCapture {
             return callbackFailure(status.callbackError, source: capture.source)
         }
         if status.configurationChanged { return "Audio device configuration changed" }
-        if status.secondsSinceCallback > 3 { return "Audio callbacks have stopped" }
-        if !status.receivedAudio { return "Waiting for the first audio callback" }
+        if capture.source == .microphone {
+            if status.secondsSinceCallback > 3 { return "Microphone callbacks have stopped" }
+            if !status.receivedAudio { return "Waiting for the first microphone callback" }
+        }
         return nil
     }
 

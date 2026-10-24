@@ -207,10 +207,10 @@ final class RecoveryStore {
 
     static func recover(directory: URL, outputDirectory: URL) throws -> SessionSnapshot {
         let store = try RecoveryStore(recovering: directory)
-        return try store.encode(outputDirectory: outputDirectory)
+        return try store.encode(outputDirectory: outputDirectory, recovered: true)
     }
 
-    private func encode(outputDirectory: URL) throws -> SessionSnapshot {
+    private func encode(outputDirectory: URL, recovered: Bool = false) throws -> SessionSnapshot {
         try requireWritable()
         guard manifest.timelineFrames > 0 else { throw error("There is no committed audio timeline to recover") }
         let outputDirectory = outputDirectory.standardizedFileURL.resolvingSymlinksInPath()
@@ -233,6 +233,9 @@ final class RecoveryStore {
             var completed = manifest.snapshot
             completed.state = .completed
             completed.failureReason = nil
+            if recovered {
+                completed.recoveryNote = "Recovered through the last committed checkpoint. Audio after this checkpoint is unknown."
+            }
             completed.outputPath = outputDirectory.appendingPathComponent(audioName).path
             completed.rawOutputPath = rawFD == nil ? nil : outputDirectory.appendingPathComponent(rawName).path
             let metadataFD = try Self.createFile(metadataStage, in: outputFD, directory: directory)

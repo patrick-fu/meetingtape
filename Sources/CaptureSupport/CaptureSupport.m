@@ -303,6 +303,12 @@ bool MTStreamNeedsRefresh(MTStreamRef reference) {
     if (stream->source == MTCaptureMicrophone) {
         return MTDefaultInput() != stream->inputDevice;
     }
+    UInt32 alive = 0;
+    UInt32 aliveSize = sizeof(alive);
+    AudioObjectPropertyAddress aliveAddress = {kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+    if (AudioObjectGetPropertyData(stream->aggregate, &aliveAddress, 0, NULL, &aliveSize, &alive) != noErr || !alive) {
+        return true;
+    }
     AudioStreamBasicDescription format = {0};
     UInt32 size = sizeof(format);
     AudioObjectPropertyAddress address = {kAudioTapPropertyFormat, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};

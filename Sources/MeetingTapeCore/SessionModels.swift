@@ -45,6 +45,7 @@ public struct SessionSnapshot: Codable, Sendable {
     public var interruptions: [RecordingInterval] = []
     public var degradedIntervals: [RecordingInterval] = []
     public var failureReason: String?
+    public var recoveryNote: String?
 
     public init(sessionID: String = UUID().uuidString.lowercased(), processID: Int32 = ProcessInfo.processInfo.processIdentifier,
                 startedAt: String = ISO8601DateFormatter().string(from: Date()), recoveryPath: String) {
