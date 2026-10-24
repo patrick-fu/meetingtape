@@ -174,9 +174,12 @@ private final class TimelineTrack {
         if let previousEnd, frame > previousEnd { try flush() }
     }
 
-    func render(at frame: Int64, count: Int) -> (left: [Float], right: [Float], complete: Bool, present: Bool) {
-        let end = frame + Int64(count)
+    func discard(before frame: Int64) {
         chunks.removeAll { $0.end <= frame }
+    }
+
+    func read(at frame: Int64, count: Int) -> (left: [Float], right: [Float], complete: Bool, present: Bool) {
+        let end = frame + Int64(count)
         var left = [Float](repeating: 0, count: count)
         var right = left
         var covered = [Bool](repeating: false, count: count)
@@ -215,9 +218,16 @@ final class CaptureTimeline {
         try microphone.flush()
     }
 
+    func systemReference(at frame: Int64, count: Int) -> (left: [Float], right: [Float], complete: Bool) {
+        let audio = system.read(at: frame, count: count)
+        return (audio.left, audio.right, audio.complete)
+    }
+
     func render(at frame: Int64, count: Int) -> (systemLeft: [Float], systemRight: [Float], microphone: [Float], hasSystem: Bool, hasMicrophone: Bool, hasAnyAudio: Bool, hasAnyMicrophone: Bool) {
-        let left = system.render(at: frame, count: count)
-        let right = microphone.render(at: frame, count: count)
+        system.discard(before: frame)
+        microphone.discard(before: frame)
+        let left = system.read(at: frame, count: count)
+        let right = microphone.read(at: frame, count: count)
         return (left.left, left.right, right.left, left.complete, right.complete, left.present || right.present, right.present)
     }
 }
