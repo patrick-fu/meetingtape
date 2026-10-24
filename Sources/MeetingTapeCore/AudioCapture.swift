@@ -43,14 +43,16 @@ final class AudioCapture {
         stop()
     }
 
-    func start() throws {
+    func start(requireBothSources: Bool = true) throws {
         guard !running else { return }
         if let latchedFatal { throw CaptureError(description: latchedFatal) }
         pending.removeAll(keepingCapacity: false)
         running = true
         do {
-            try open(&system)
-            try open(&microphone)
+            do { try open(&system) }
+            catch { if requireBothSources || latchedFatal != nil { throw error } }
+            do { try open(&microphone) }
+            catch { if requireBothSources || latchedFatal != nil { throw error } }
             latchCallbackFailure(system)
             latchCallbackFailure(microphone)
             if let latchedFatal { throw CaptureError(description: latchedFatal) }

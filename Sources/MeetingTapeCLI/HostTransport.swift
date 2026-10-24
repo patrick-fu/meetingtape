@@ -52,7 +52,6 @@ final class SessionLock {
         descriptor = open(directory.appendingPathComponent(name).path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
         guard descriptor >= 0 else { throw HostFailure("cannot open the session lock") }
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
-            close(descriptor)
             throw HostFailure("another recording session is starting or active")
         }
     }
@@ -118,7 +117,7 @@ enum HostTransport {
     static func read<T: Decodable>(_ type: T.Type, from descriptor: Int32) throws -> T {
         var data = Data()
         var bytes = [UInt8](repeating: 0, count: 4096)
-        while data.count < 1_048_576 {
+        while data.count < 8 * 1_048_576 {
             let count = Darwin.read(descriptor, &bytes, bytes.count)
             if count < 0 && errno == EINTR { continue }
             guard count > 0 else { throw HostFailure("recording host disconnected or timed out before replying") }

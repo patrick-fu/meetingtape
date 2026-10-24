@@ -414,8 +414,11 @@ public final class RecordingSession: @unchecked Sendable {
         preservationWatch = .awake(lastCommit: ProcessInfo.processInfo.systemUptime)
         statusLock.unlock()
         do {
-            try capture.start()
-            report?.state = .recording
+            try capture.start(requireBothSources: false)
+            let health = capture.health()
+            report?.systemAvailable = health.systemAvailable
+            report?.microphoneAvailable = health.microphoneAvailable
+            report?.state = health.systemAvailable && health.microphoneAvailable ? .recording : .interrupted
             report?.elapsedSeconds = now
             try checkpoint()
             publish()

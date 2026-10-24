@@ -8,6 +8,7 @@ private final class TestSession: HostSession, @unchecked Sendable {
     var value = SessionSnapshot(recoveryPath: "/preserved/session.recovery")
     var failStart = false
     var failStop = false
+    var failDuringRecording = false
     var stopDelay = 0.0
 
     func start(_ configuration: RecordingConfiguration) throws -> SessionSnapshot {
@@ -18,7 +19,14 @@ private final class TestSession: HostSession, @unchecked Sendable {
         return value
     }
 
-    func snapshot() -> SessionSnapshot { value }
+    func snapshot() -> SessionSnapshot {
+        var result = value
+        if failDuringRecording && result.state == .recording {
+            result.state = .failed
+            result.failureReason = "injected capture failure"
+        }
+        return result
+    }
 
     func stop() throws -> SessionSnapshot {
         Thread.sleep(forTimeInterval: stopDelay)
@@ -99,6 +107,24 @@ private func isolatedPaths() throws -> HostPaths {
     #expect(decoded.sessionID == "actual-session")
     #expect(decoded.state == .interrupted)
     #expect(decoded.degradedIntervals == snapshot.degradedIntervals)
+}
+
+@Test func automaticCaptureFailureEndsHostAndRetainsFailure() throws {
+    let paths = try isolatedPaths()
+    defer { try? FileManager.default.removeItem(at: paths.directory) }
+    let session = TestSession()
+    session.failDuringRecording = true
+    session.failStop = true
+    let host = try RecordingHost(paths: paths, session: session)
+    _ = try host.start(RecordingConfiguration(outputDirectory: NSTemporaryDirectory()))
+    let done = DispatchSemaphore(value: 0)
+    Thread.detachNewThread { host.serve(); done.signal() }
+    #expect(done.wait(timeout: .now() + 2) == .success)
+    let data = try Data(contentsOf: paths.directory.appendingPathComponent("last-session.json"))
+    let retained = try JSONDecoder().decode(SessionSnapshot.self, from: data)
+    #expect(retained.state == .failed)
+    #expect(retained.failureReason == "injected finalization failure")
+    #expect(retained.recoveryPath == "/preserved/session.recovery")
 }
 
 @Test func recoverRoutesArgumentsAndReportsFinalOutput() {

@@ -125,6 +125,20 @@ static OSStatus MTSystemCallback(AudioObjectID device, const AudioTimeStamp *now
         *error = MTStatus(@"Create system tap aggregate", status);
         return NO;
     }
+    Float64 rate = format.mSampleRate;
+    AudioObjectPropertyAddress rateAddress = {kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+    status = AudioObjectSetPropertyData(aggregate, &rateAddress, 0, NULL, sizeof(rate), &rate);
+    if (status != noErr) {
+        *error = MTStatus(@"Configure system capture sample rate", status);
+        return NO;
+    }
+    UInt32 frames = (UInt32)(rate / 100);
+    AudioObjectPropertyAddress bufferAddress = {kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+    status = AudioObjectSetPropertyData(aggregate, &bufferAddress, 0, NULL, sizeof(frames), &frames);
+    if (status != noErr) {
+        *error = MTStatus(@"Configure system capture buffer size", status);
+        return NO;
+    }
     callbackAnchor = CFBridgingRetain(self);
     status = AudioDeviceCreateIOProcID(aggregate, MTSystemCallback, (__bridge void *)self, &ioProc);
     if (status != noErr) {

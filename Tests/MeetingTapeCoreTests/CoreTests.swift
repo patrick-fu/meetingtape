@@ -15,12 +15,7 @@ import Testing
     #expect(configuration.keepRawMicrophone == false)
 }
 
-@Test func scaffoldEngineReportsUnavailability() {
-    let engine = ScaffoldEngine()
-    #expect(throws: MeetingTapeError.captureUnavailable) {
-        try engine.start(RecordingConfiguration(outputDirectory: "/tmp"))
-    }
-    #expect(throws: MeetingTapeError.noActiveSession) {
-        try engine.stop()
-    }
+@Test func directoryErrorsIdentifyTheirPaths() {
+    #expect(MeetingTapeError.outDirectoryDoesNotExist("/tmp/missing").description.contains("/tmp/missing"))
+    #expect(MeetingTapeError.outPathNotADirectory("/tmp/file").description.contains("/tmp/file"))
 }
