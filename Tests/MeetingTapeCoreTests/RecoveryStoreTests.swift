@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import MeetingTapeCore
 
-@Test func recoveryUsesCommittedTimelineAndRawSamples() throws {
+@Test(arguments: [false, true]) func recoveryUsesCommittedTimelineAndRawSamples(legacyCAFHeader: Bool) throws {
     let manager = FileManager.default
     let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let directory = root.appendingPathComponent("session.recovery")
@@ -22,6 +22,15 @@ import Testing
         try store.append(stereo: stereo, rawMicrophone: Array(repeating: 0.25, count: 48_000), at: 144_000)
         snapshot.elapsedSeconds = 5
         #expect(try store.checkpoint(snapshot) == 240_000)
+        for (name, channels, expected) in [("audio.caf", 2, Array(stereo.prefix(4))),
+                                           ("microphone.caf", 1, [Float](repeating: 0.125, count: 2))] {
+            let file = try AVAudioFile(forReading: directory.appendingPathComponent(name),
+                                       commonFormat: .pcmFormatFloat32, interleaved: true)
+            let pcm = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 2))
+            try file.read(into: pcm, frameCount: 2)
+            let decoded = Array(UnsafeBufferPointer(start: try #require(pcm.floatChannelData?[0]), count: 2 * channels))
+            #expect(decoded == expected)
+        }
         do {
             _ = try RecoveryStore.recover(directory: directory, outputDirectory: root)
             Issue.record("Recovery accepted a live writer")
@@ -29,6 +38,14 @@ import Testing
             #expect(String(describing: error).contains("active writer"))
         }
         try store.append(stereo: stereo, rawMicrophone: Array(repeating: 0.75, count: 48_000), at: 240_000)
+    }
+    if legacyCAFHeader {
+        for name in ["audio.caf", "microphone.caf"] {
+            let file = try FileHandle(forWritingTo: directory.appendingPathComponent(name))
+            try file.seek(toOffset: 32)
+            try file.write(contentsOf: Data([0, 0, 0, 9]))
+            try file.close()
+        }
     }
     let result = try RecoveryStore.recover(directory: directory, outputDirectory: root)
     #expect(result.state == .completed)

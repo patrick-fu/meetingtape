@@ -417,7 +417,8 @@ final class RecoveryStore {
             try header.withUnsafeMutableBytes {
                 try readAll(into: $0.baseAddress!, count: $0.count, from: fd, offset: 0, directory: directory)
             }
-            guard header == cafHeader(channels: channels) else {
+            let legacyHeader = cafHeader(channels: channels, formatFlags: 9)
+            guard header == cafHeader(channels: channels) || header == legacyHeader else {
                 throw error("Unsupported CAF header in \(name)", directory: directory)
             }
             return fd
@@ -427,7 +428,7 @@ final class RecoveryStore {
         }
     }
 
-    private static func cafHeader(channels: Int) -> Data {
+    private static func cafHeader(channels: Int, formatFlags: UInt32 = 3) -> Data {
         var data = Data()
         func append<T: FixedWidthInteger>(_ value: T) {
             var value = value.bigEndian
@@ -440,7 +441,7 @@ final class RecoveryStore {
         append(UInt64(32))
         append(sampleRate.bitPattern)
         data.append(contentsOf: "lpcm".utf8)
-        append(UInt32(9))
+        append(formatFlags)
         append(UInt32(channels * 4))
         append(UInt32(1))
         append(UInt32(channels))

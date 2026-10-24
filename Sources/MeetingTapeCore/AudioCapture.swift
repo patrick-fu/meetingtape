@@ -104,8 +104,8 @@ final class AudioCapture {
         if let stream = microphone.stream { MTStreamQuiesce(stream) }
         latchCallbackFailure(system)
         latchCallbackFailure(microphone)
-        close(&system, retainQueuedAudio: true)
-        close(&microphone, retainQueuedAudio: true)
+        close(&system)
+        close(&microphone)
     }
 
     private func open(_ capture: inout SourceCapture) throws {
@@ -126,14 +126,14 @@ final class AudioCapture {
         capture.retryAfter = 0
     }
 
-    private func close(_ capture: inout SourceCapture, retainQueuedAudio: Bool) {
+    private func close(_ capture: inout SourceCapture) {
         guard let stream = capture.stream else { return }
         var message = [CChar](repeating: 0, count: 1024)
         if !MTStreamStop(stream, &message, message.count) {
             latchedFatal = latchedFatal ?? String(decoding: message.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
         }
         latchCallbackFailure(capture)
-        if retainQueuedAudio { appendDrained(capture, to: &pending) }
+        appendDrained(capture, to: &pending)
         MTStreamDestroy(stream)
         capture.stream = nil
         capture.reason = "Capture is stopped"
@@ -143,7 +143,7 @@ final class AudioCapture {
         if let stream = capture.stream {
             let status = MTStreamPoll(stream)
             guard MTStreamNeedsRefresh(stream) || (capture.source == .microphone && status.secondsSinceCallback > 3) else { return }
-            close(&capture, retainQueuedAudio: false)
+            close(&capture)
             if latchedFatal != nil { return }
         }
         guard ProcessInfo.processInfo.systemUptime >= capture.retryAfter else { return }
