@@ -2,16 +2,24 @@ import Foundation
 import MeetingTapeCore
 
 enum StopCommand {
-    static func run(_ arguments: [String], stop: () throws -> SessionSnapshot?) -> RunResult {
+    static func run(_ arguments: [String], stop: () throws -> SessionSnapshot?, stopSession: ((String) throws -> SessionSnapshot?)? = nil) -> RunResult {
         if arguments.contains("-h") || arguments.contains("--help") {
             return RunResult(exitCode: .ok, stdout: HelpText.stop)
         }
-        guard arguments.isEmpty else { return RunResult(exitCode: .usage, stderr: "error: stop accepts no options\n") }
+        let json = arguments.contains("--json")
+        let values = arguments.filter { $0 != "--json" }
+        let expected: String?
+        if values.isEmpty { expected = nil }
+        else if values.count == 2, values[0] == "--session", !values[1].isEmpty, stopSession != nil { expected = values[1] }
+        else { return RunResult(exitCode: .usage, stderr: "error: usage: meetingtape stop [--session <id>] [--json]\n") }
         do {
-            guard let snapshot = try stop() else {
+            let value: SessionSnapshot?
+            if let expected { value = try stopSession!(expected) }
+            else { value = try stop() }
+            guard let snapshot = value else {
                 return RunResult(exitCode: .noActiveSession, stderr: "error: no active recording session\n")
             }
-            return RunResult(exitCode: .ok, stdout: "recording stopped\n" + snapshotText(snapshot))
+            return RunResult(exitCode: .ok, stdout: try snapshotOutput(snapshot, json: json, prefix: "recording stopped\n"))
         } catch {
             return RunResult(exitCode: .capture, stderr: "error: \(error)\n")
         }
@@ -48,12 +56,14 @@ enum RecoverCommand {
         if arguments.contains("-h") || arguments.contains("--help") {
             return RunResult(exitCode: .ok, stdout: HelpText.recover)
         }
-        guard arguments.count == 3, arguments[1] == "--out", !arguments[0].hasPrefix("-") else {
+        let json = arguments.last == "--json"
+        let values = json ? Array(arguments.dropLast()) : arguments
+        guard values.count == 3, values[1] == "--out", !values[0].hasPrefix("-") else {
             return RunResult(exitCode: .usage, stderr: "error: usage: meetingtape recover <recovery-directory> --out <existing-directory>\n")
         }
         do {
-            let snapshot = try recover(arguments[0], arguments[2])
-            return RunResult(exitCode: .ok, stdout: "recording recovered\n" + snapshotText(snapshot))
+            let snapshot = try recover(values[0], values[2])
+            return RunResult(exitCode: .ok, stdout: try snapshotOutput(snapshot, json: json, prefix: "recording recovered\n"))
         } catch {
             return RunResult(exitCode: .capture, stderr: "error: \(error)\n")
         }

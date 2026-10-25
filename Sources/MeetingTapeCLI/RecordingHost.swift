@@ -66,7 +66,10 @@ final class RecordingHost: @unchecked Sendable {
                 var stopping = false
                 do {
                     let request = try HostTransport.read(HostRequest.self, from: client)
-                    stopping = request == .stop
+                    if case .stopSession(let id) = request, self.session.snapshot().sessionID != id {
+                        throw HostFailure("the active recording session changed; refresh status before stopping")
+                    }
+                    stopping = request.isStop
                     let response = stopping ? self.finish() : HostResponse(snapshot: self.session.snapshot())
                     try HostTransport.write(response, to: client)
                 } catch {

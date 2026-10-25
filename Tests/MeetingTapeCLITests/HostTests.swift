@@ -66,6 +66,23 @@ private func isolatedPaths() throws -> HostPaths {
     #expect(done.wait(timeout: .now() + 2) == .success)
 }
 
+@Test func sessionFencedStopRefusesAReplacementSession() throws {
+    let paths = try isolatedPaths()
+    defer { try? FileManager.default.removeItem(at: paths.directory) }
+    let host = try RecordingHost(paths: paths, session: TestSession())
+    let current = try host.start(RecordingConfiguration(outputDirectory: NSTemporaryDirectory()))
+    let done = DispatchSemaphore(value: 0)
+    Thread.detachNewThread { host.serve(); done.signal() }
+    let refused = try #require(try HostTransport.request(.stopSession("previous-session"), paths: paths))
+    #expect(refused.error?.contains("session changed") == true)
+    let running = try #require(try HostTransport.request(.status, paths: paths))
+    #expect(running.snapshot?.sessionID == current.sessionID)
+    #expect(running.snapshot?.state == .recording)
+    let completed = try #require(try HostTransport.request(.stopSession(current.sessionID), paths: paths))
+    #expect(completed.snapshot?.state == .completed)
+    #expect(done.wait(timeout: .now() + 2) == .success)
+}
+
 @Test func liveHostRetainsExclusiveSessionLock() throws {
     let paths = try isolatedPaths()
     defer { try? FileManager.default.removeItem(at: paths.directory) }
@@ -165,4 +182,28 @@ private func isolatedPaths() throws -> HostPaths {
     #expect(StopCommand.run(["--wat"], stop: { nil }).exitCode == .usage)
     #expect(StatusCommand.run(["--wat"], status: { nil }).exitCode == .usage)
     #expect(RecoverCommand.run(["/recovery"], recover: { _, _ in fatalError() }).exitCode == .usage)
+}
+
+@Test func mutatingCommandsReturnMachineReadableSnapshotsForDesktop() throws {
+    var value = SessionSnapshot(sessionID: "desktop-session", recoveryPath: "/恢复 材料")
+    value.state = .recording
+    value.systemAvailable = true
+    value.microphoneAvailable = true
+    let start = StartCommand.run(["--out", NSTemporaryDirectory(), "--json"], start: { _ in value })
+    let ready = try JSONDecoder().decode(SessionSnapshot.self, from: Data(start.stdout.utf8))
+    #expect(start.exitCode == .ok)
+    #expect(ready.sessionID == value.sessionID && ready.state == .recording)
+    value.state = .completed
+    value.outputPath = "/录音 文件/实际结果.m4a"
+    value.degradedIntervals = [RecordingInterval(startSeconds: 1, endSeconds: 2, reason: "raw fallback")]
+    let stop = StopCommand.run(["--json"], stop: { value })
+    let recover = RecoverCommand.run([value.recoveryPath, "--out", "/录音 文件", "--json"], recover: { _, _ in value })
+    for result in [stop, recover] {
+        let completed = try JSONDecoder().decode(SessionSnapshot.self, from: Data(result.stdout.utf8))
+        #expect(result.exitCode == .ok)
+        #expect(completed.state == .completed)
+        #expect(completed.outputPath == value.outputPath)
+        #expect(completed.degradedIntervals == value.degradedIntervals)
+    }
+    #expect(StopCommand.run(["--json"], stop: { throw HostFailure("finalization failed") }).exitCode == .capture)
 }

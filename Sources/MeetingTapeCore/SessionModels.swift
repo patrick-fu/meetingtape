@@ -42,6 +42,8 @@ public struct SessionSnapshot: Codable, Sendable {
     public var recoveryPath: String
     public var systemAvailable = false
     public var microphoneAvailable = false
+    public var systemLevel: Double?
+    public var microphoneLevel: Double?
     public var interruptions: [RecordingInterval] = []
     public var degradedIntervals: [RecordingInterval] = []
     public var failureReason: String?

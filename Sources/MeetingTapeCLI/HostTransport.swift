@@ -13,9 +13,39 @@ struct HostResponse: Codable, Sendable {
     var error: String?
 }
 
-enum HostRequest: String, Codable {
+enum HostRequest: Codable, Equatable {
     case status
     case stop
+    case stopSession(String)
+
+    var isStop: Bool { self != .status }
+
+    private enum CodingKeys: String, CodingKey { case command, sessionID }
+
+    init(from decoder: any Decoder) throws {
+        if let command = try? decoder.singleValueContainer().decode(String.self) {
+            switch command {
+            case "status": self = .status
+            case "stop": self = .stop
+            default: throw HostFailure("unknown host request")
+            }
+        } else {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            guard try container.decode(String.self, forKey: .command) == "stop" else { throw HostFailure("unknown host request") }
+            self = .stopSession(try container.decode(String.self, forKey: .sessionID))
+        }
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        if case .stopSession(let id) = self {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode("stop", forKey: .command)
+            try container.encode(id, forKey: .sessionID)
+        } else {
+            var container = encoder.singleValueContainer()
+            try container.encode(self == .status ? "status" : "stop")
+        }
+    }
 }
 
 struct HostPaths: Sendable {
@@ -107,7 +137,7 @@ enum HostTransport {
     static func request(_ request: HostRequest, paths: HostPaths) throws -> HostResponse? {
         let descriptor = try socket()
         defer { close(descriptor) }
-        var responseTimeout = timeval(tv_sec: request == .stop ? 0 : 5, tv_usec: 0)
+        var responseTimeout = timeval(tv_sec: request.isStop ? 0 : 5, tv_usec: 0)
         setsockopt(descriptor, SOL_SOCKET, SO_RCVTIMEO, &responseTimeout, socklen_t(MemoryLayout.size(ofValue: responseTimeout)))
         var target = try address(paths.socketPath)
         let connected = withUnsafePointer(to: &target) {
