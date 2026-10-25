@@ -7,6 +7,7 @@ struct CommandServices {
     var status: () throws -> SessionSnapshot?
     var stop: () throws -> SessionSnapshot?
     var recover: (String, String) throws -> SessionSnapshot
+    var stopSession: (String) throws -> SessionSnapshot? = { try HostClient.snapshot(.stopSession($0)) }
 
     static var live: CommandServices {
         CommandServices(
@@ -96,6 +97,13 @@ enum HostClient {
         guard let snapshot = response.snapshot else { throw HostFailure("recording host returned no session state") }
         return snapshot
     }
+}
+
+func snapshotOutput(_ snapshot: SessionSnapshot, json: Bool, prefix: String) throws -> String {
+    guard json else { return prefix + snapshotText(snapshot) }
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    return String(decoding: try encoder.encode(snapshot), as: UTF8.self) + "\n"
 }
 
 func snapshotText(_ snapshot: SessionSnapshot) -> String {

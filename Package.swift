@@ -11,6 +11,7 @@ let package = Package(
     products: [
         .library(name: "MeetingTapeCore", targets: ["MeetingTapeCore"]),
         .executable(name: "meetingtape", targets: ["MeetingTapeCLI"]),
+        .executable(name: "MeetingTapeDesktop", targets: ["MeetingTapeDesktop"]),
     ],
     targets: [
         .systemLibrary(name: "APMBridge", path: "Sources/APMBridge"),
@@ -33,6 +34,7 @@ let package = Package(
             dependencies: ["MeetingTapeCore"],
             linkerSettings: [.linkedFramework("CoreAudio")]
         ),
+        .executableTarget(name: "MeetingTapeDesktop", dependencies: ["MeetingTapeCore"]),
         .testTarget(name: "MeetingTapeCoreTests", dependencies: ["MeetingTapeCore"]),
         .testTarget(
             name: "MeetingTapeCLITests",

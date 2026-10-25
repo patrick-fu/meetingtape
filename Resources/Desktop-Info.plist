@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>CFBundleIdentifier</key><string>com.paaatrickfu.meetingtape.desktop</string>
+    <key>CFBundleName</key><string>MeetingTape</string>
+    <key>CFBundleDisplayName</key><string>MeetingTape</string>
+    <key>CFBundleExecutable</key><string>MeetingTape</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>0.1.0</string>
+    <key>LSMinimumSystemVersion</key><string>14.2</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSMicrophoneUsageDescription</key><string>MeetingTape 使用麦克风录制你的声音。</string>
+    <key>NSAudioCaptureUsageDescription</key><string>MeetingTape 录制系统声音并保存到本机。</string>
+</dict></plist>

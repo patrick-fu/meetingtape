@@ -9,6 +9,7 @@ enum StartCommand {
 
         var out: String?
         var keepRaw = false
+        var json = false
 
         var index = 0
         while index < arguments.count {
@@ -21,6 +22,8 @@ enum StartCommand {
                 out = arguments[index]
             case "--keep-raw":
                 keepRaw = true
+            case "--json":
+                json = true
             default:
                 return usage("error: unknown option '\(arguments[index])'\nrun 'meetingtape help start' for usage\n")
             }
@@ -46,7 +49,7 @@ enum StartCommand {
         let configuration = RecordingConfiguration(outputDirectory: URL(fileURLWithPath: out).standardizedFileURL.path, keepRawMicrophone: keepRaw)
         do {
             let snapshot = try start(configuration)
-            return RunResult(exitCode: ExitCode.ok, stdout: "recording started\n" + snapshotText(snapshot))
+            return RunResult(exitCode: ExitCode.ok, stdout: try snapshotOutput(snapshot, json: json, prefix: "recording started\n"))
         } catch {
             return RunResult(exitCode: ExitCode.capture, stderr: "error: \(error)\n")
         }

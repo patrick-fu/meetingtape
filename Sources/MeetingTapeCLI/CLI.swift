@@ -32,7 +32,7 @@ public enum MeetingTapeCLI {
         case "start":
             return StartCommand.run(rest, start: services.start)
         case "stop":
-            return StopCommand.run(rest, stop: services.stop)
+            return StopCommand.run(rest, stop: services.stop, stopSession: services.stopSession)
         case "status":
             return StatusCommand.run(rest, status: services.status)
         case "doctor":

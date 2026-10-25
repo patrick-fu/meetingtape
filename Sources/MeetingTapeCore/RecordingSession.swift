@@ -240,6 +240,8 @@ public final class RecordingSession: @unchecked Sendable {
         while nextFrame < target {
             let count = Int(min(target - nextFrame, 480 - nextFrame % 480))
             let audio = timeline.render(at: nextFrame, count: count)
+            report?.systemLevel = Double(zip(audio.systemLeft, audio.systemRight).reduce(Float(0)) { max($0, abs(($1.0 + $1.1) * 0.5)) })
+            report?.microphoneLevel = Double(audio.microphone.reduce(Float(0)) { max($0, abs($1)) })
             if !audio.hasMicrophone { speechNeedsReset = true }
             let beginning = Double(nextFrame) / 48_000
             let end = Double(nextFrame + Int64(count)) / 48_000
