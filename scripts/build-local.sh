@@ -23,9 +23,12 @@ swift build -c "$CONFIGURATION" --product meetingtape \
     -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$ROOT/Resources/Info.plist"
 DESTINATION="$ROOT/.build/local/$CONFIGURATION"
 mkdir -p "$DESTINATION"
-cp "$BUILD_DIRECTORY/meetingtape" "$DESTINATION/meetingtape"
+cp "$BUILD_DIRECTORY/meetingtape" "$DESTINATION/meetingtape.next"
+mkdir -p "$DESTINATION/Transcription"
+cp -R "$ROOT/Resources/Transcription/." "$DESTINATION/Transcription/"
 /usr/bin/codesign --force --options runtime --timestamp=none --entitlements "$ROOT/Resources/meetingtape.entitlements" \
-    --identifier com.paaatrickfu.meetingtape --sign "$IDENTITY" "$DESTINATION/meetingtape"
+    --identifier com.paaatrickfu.meetingtape --sign "$IDENTITY" "$DESTINATION/meetingtape.next"
+mv -f "$DESTINATION/meetingtape.next" "$DESTINATION/meetingtape"
 /usr/bin/codesign --verify --strict --verbose=2 "$DESTINATION/meetingtape"
 /usr/bin/codesign -d --verbose=4 "$DESTINATION/meetingtape" > "$DESTINATION/signature.txt" 2>&1
 /usr/bin/codesign -d -r- "$DESTINATION/meetingtape" >> "$DESTINATION/signature.txt" 2>&1

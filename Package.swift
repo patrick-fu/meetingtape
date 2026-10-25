@@ -29,17 +29,19 @@ let package = Package(
                 .unsafeFlags(["-L", "\(Context.packageDirectory)/.build/apm/lib"] + apmLibraries.map { "-l\($0)" })
             ]
         ),
+        .target(name: "MeetingTapeTranscription", dependencies: ["MeetingTapeCore"], linkerSettings: [.linkedFramework("Security")]),
         .executableTarget(
             name: "MeetingTapeCLI",
-            dependencies: ["MeetingTapeCore"],
+            dependencies: ["MeetingTapeCore", "MeetingTapeTranscription"],
             linkerSettings: [.linkedFramework("CoreAudio")]
         ),
-        .executableTarget(name: "MeetingTapeDesktop", dependencies: ["MeetingTapeCore"]),
+        .executableTarget(name: "MeetingTapeDesktop", dependencies: ["MeetingTapeCore", "MeetingTapeTranscription"]),
         .testTarget(name: "MeetingTapeCoreTests", dependencies: ["MeetingTapeCore"]),
         .testTarget(
             name: "MeetingTapeCLITests",
             dependencies: ["MeetingTapeCLI", "MeetingTapeCore"]
         ),
         .testTarget(name: "MeetingTapeDesktopTests", dependencies: ["MeetingTapeDesktop"]),
+        .testTarget(name: "MeetingTapeTranscriptionTests", dependencies: ["MeetingTapeTranscription"]),
     ]
 )

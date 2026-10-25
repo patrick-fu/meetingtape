@@ -44,6 +44,7 @@ struct LibraryView: View {
         }
         .frame(minWidth: 800, minHeight: 540)
         .sheet(isPresented: $settings) { SettingsView(model: model) { settings = false } }
+        .environmentObject(model.transcription)
     }
 
     private var toolbar: some View {
@@ -146,6 +147,7 @@ private struct RecordingDetail: View {
                     Button { model.toggleStar(item.id) } label: { Image(systemName: item.starred ? "star.fill" : "star").foregroundStyle(item.starred ? .orange.opacity(0.75) : .secondary).frame(width: 30, height: 30) }.buttonStyle(.plain).disabled(model.libraryReadOnly).accessibilityLabel(item.starred ? "取消标记" : "标记录音")
                 }
                 waveformPanel
+                TranscriptSection(model: model, item: item)
                 HStack(alignment: .top, spacing: 35) {
                     VStack(alignment: .leading, spacing: 15) {
                         Text("录音来源").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
@@ -229,16 +231,20 @@ struct RecordedWave: View {
 struct SettingsView: View {
     @ObservedObject var model: AppModel
     var dismiss: () -> Void
+    @State private var tab = 0
     var body: some View {
-        VStack(alignment: .leading, spacing: 23) {
-            Text("录音设置").font(.system(size: 20, weight: .semibold))
+        VStack(alignment: .leading, spacing: 18) {
+            Text("设置").font(.system(size: 20, weight: .semibold))
+            Picker("设置分类", selection: $tab) { Text("录音").tag(0); Text("转写与模型").tag(1) }.pickerStyle(.segmented)
+            if tab == 0 {
             VStack(alignment: .leading, spacing: 10) {
                 Text("保存位置").font(.system(size: 12)).foregroundStyle(.secondary)
                 HStack { Text(model.outputDirectory).font(.system(size: 12)).lineLimit(2).textSelection(.enabled); Spacer(); Button("更改") { model.chooseDirectory() } }.disabled(model.active || model.operation != nil)
             }
             Toggle("保留原始麦克风音轨", isOn: Binding(get: { model.keepRaw }, set: { model.setKeepRaw($0) })).toggleStyle(.switch).controlSize(.small).disabled(model.active || model.operation != nil)
             if model.retainedRecoveryPath != nil { Button("查看上次恢复材料") { model.revealRecovery() }.font(.system(size: 11)) }
+            } else { TranscriptionSettingsView().environmentObject(model.transcription) }
             HStack { Spacer(); Button("完成", action: dismiss).keyboardShortcut(.defaultAction) }
-        }.padding(27).frame(width: 430)
+        }.padding(27).frame(width: tab == 0 ? 500 : 600)
     }
 }

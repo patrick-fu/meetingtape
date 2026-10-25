@@ -12,4 +12,5 @@
     <key>NSHighResolutionCapable</key><true/>
     <key>NSMicrophoneUsageDescription</key><string>MeetingTape 使用麦克风录制你的声音。</string>
     <key>NSAudioCaptureUsageDescription</key><string>MeetingTape 录制系统声音并保存到本机。</string>
+    <key>NSRemovableVolumesUsageDescription</key><string>MeetingTape 使用你选择的外接盘上的本地语音模型。</string>
 </dict></plist>

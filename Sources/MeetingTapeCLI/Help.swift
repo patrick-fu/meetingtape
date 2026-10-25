@@ -13,6 +13,7 @@ enum HelpText {
           status   Print the current session state
           doctor   Check environment readiness for recording
           recover  Finalize a recording from preserved recovery materials
+          transcribe  Transcribe saved audio and configure local/cloud models
 
         Details:  meetingtape help <command>   (for example: meetingtape help start)
         Version:  meetingtape --version
