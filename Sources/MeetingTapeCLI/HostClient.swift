@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import MeetingTapeCore
+import MeetingTapeTranscription
 
 struct CommandServices {
     var start: (RecordingConfiguration) throws -> SessionSnapshot
@@ -29,6 +30,8 @@ enum HostClient {
     }
 
     static func start(_ configuration: RecordingConfiguration) throws -> SessionSnapshot {
+        let permit = try RecordingPriorityPermit()
+        defer { permit.retain() }
         let paths = try HostPaths()
         let startup = try SessionLock(directory: paths.directory, name: "startup.lock")
         defer { withExtendedLifetime(startup) {} }

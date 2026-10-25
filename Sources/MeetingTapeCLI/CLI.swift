@@ -39,6 +39,8 @@ public enum MeetingTapeCLI {
             return DoctorCommand.run(rest)
         case "recover":
             return RecoverCommand.run(rest, recover: services.recover)
+        case "transcribe":
+            return TranscriptionCommand.run(rest)
         default:
             return RunResult(
                 exitCode: ExitCode.usage,
@@ -62,6 +64,8 @@ public enum MeetingTapeCLI {
             return RunResult(exitCode: ExitCode.ok, stdout: HelpText.doctor)
         case "recover":
             return RunResult(exitCode: ExitCode.ok, stdout: HelpText.recover)
+        case "transcribe":
+            return RunResult(exitCode: ExitCode.ok, stdout: TranscriptionCommand.help)
         case "--version":
             return RunResult(exitCode: ExitCode.ok, stdout: "meetingtape \(meetingTapeVersion)\n")
         default:

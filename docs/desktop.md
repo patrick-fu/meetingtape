@@ -26,6 +26,10 @@ SwiftPM 的桌面产品名是 `MeetingTapeDesktop`，App 显示名为 `MeetingTa
 
 录制电平来自实际系统与麦克风输入，回听波形从实际文件分段解码取样。麦克风语音处理的历史降级和音源中断保留在录音状态记录中；当前 [AEC 未通过结论](local-verification.md)不因 GUI 实现而改变。
 
+## 语音转写
+
+资料库现可手动或自动发起本地 Qwen3 ASR、MOSS 与豆包 2.0 转写。默认模型、本地安装、版本选择和豆包钥匙串配置集中在「设置 → 转写与模型」；多模型结果在正文处展开比较、定位回听。完整用法与精度边界见[语音转写说明](transcription.md)。
+
 ## CLI 交互
 
 GUI 通过 App 内嵌 CLI 的绝对路径调用命令，不另起一套录音引擎。默认与普通 CLI 使用同一会话路由；`MEETINGTAPE_STATE_DIR` 可按现有约定隔离。内部库索引可用 `MEETINGTAPE_LIBRARY_DIR` 隔离，不改变录音路径。

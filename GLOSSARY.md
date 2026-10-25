@@ -33,6 +33,18 @@ A time range in an active session during which one or both audio sources are tem
 One recording from start to stop, including automatic recovery after system sleep or device changes; at most one session is active at a time.
 _Avoid_: recording job
 
+**转写（Transcription）**:
+对已保存的录音进行语音识别，生成可按时间定位的文字。
+
+**转写任务（Transcription task）**:
+对一段已保存的录音，使用所选一个或多个模型生成转写结果的一次处理。
+
+**转写结果（Transcript）**:
+识别模型对录音生成的正文与时间分段，关联原录音用于浏览和回听定位。
+
+**模型选择（Model selection）**:
+一次转写使用的一个或多个识别模型；用户可以设置默认选择，并在发起转写时调整。
+
 **Developer ID**:
 The Apple code-signing identity type used for every MeetingTape build; its designated requirement is anchored to the signing team, so certificate renewal keeps the identity stable.
 _Avoid_: ad-hoc signing, self-signing

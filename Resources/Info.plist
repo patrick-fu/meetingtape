@@ -14,5 +14,7 @@
     <string>MeetingTape records your microphone as the right channel of your recording.</string>
     <key>NSAudioCaptureUsageDescription</key>
     <string>MeetingTape records system audio as the left channel of your recording.</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>MeetingTape uses local speech models from the external folder you select.</string>
 </dict>
 </plist>
