@@ -77,7 +77,7 @@ python3 scripts/verify-local.py \
 
 真实近端语音已有采样与包络保留证据，但主观清晰度和修补后的真实双讲仍未验收。物理多输出覆盖、设备变化、真实睡眠、长期漂移、故障时点矩阵、disk-full/OS crash/power-loss 和 macOS 14.2 运行仍未完成。本轮没有配置或执行 CI，未发布或合并。
 
-## 原生 GUI 接入（2026-10-25）
+## 原生 GUI 首版接入（2026-10-25，历史记录）
 
 用户确认资料库加极简悬浮窗的融合方向，原生实现见 [桌面版说明](desktop.md)。debug/release App 及各自内嵌 CLI 完成签名检查，38 项测试通过。新增结构化开始/停止/恢复输出、条件停止与实际输入电平，复用已有录音引擎。
 
@@ -91,3 +91,31 @@ python3 scripts/verify-local.py \
 新原生 App 身份的真实录制在首次系统录音授权处阻塞，系统设置要求触控 ID 或密码验证。未绕过验证；原生开始→停止→自动入库、浮窗拖动/焦点/跨 Space/全屏仍未通过。本轮 AEC FAIL 和先前实机缺口不变，无 CI、发布或合并。
 
 本机最终验收索引：`<LOCAL_EVIDENCE_PATH>`。
+
+## 原生 GUI 实录与启动修复（2026-10-26）
+
+本次续跑确认首版临时目录及其合成样本已被清理，以上保留为已提交的历史结论，不能再作为可打开的本机原始证据。资料库正确提示旧样本丢失。麦克风与仅系统录音权限已开启，未修改 TCC 数据库。
+
+初始状态查询在子进程退出后仍卡于 `NSConcreteTask.waitUntilExit`，采样 884/884 次均在该位置；主线程仍正常运行。同步等待占住 RecordingClient actor，导致新录音停留在准备状态。改为启动前注册 `terminationHandler`，异步等待退出并显式保活 Process，stdout/stderr 并发读取保持不变。跨线程 RunLoop 竞争是机制推断，阻塞位置有直接采样证据；[Apple 文档](https://developer.apple.com/documentation/foundation/process/waituntilexit%28%29)说明该方法轮询当前线程 RunLoop。
+
+41 项测试通过（38 项原有引擎/CLI 测试，加 3 项桌面组件测试）。连续短命令在旧实现也通过，不能声称它复现了阻塞；大 stderr、无效可执行文件和 signal 退出已实际执行。无输出失败的两项断言在 fallback 修复前失败、修复后通过，signal 不会使 GUI 崩溃。Sol 与 Gemini 独立复核后，对 Process 生命周期加显式保护，修复空错误；“signal 必然抛异常”和“每次泄漏两个读端 FD”无事实支持，未据此扩大实现。取消不主动终止 helper 仍为已有边界，GUI 在准备/保存时阻止退出。
+
+| 最终本地制品 | GUI SHA-256 | 内嵌 CLI SHA-256 |
+| --- | --- | --- |
+| debug | `357797bc9f611320f9b212dbb34f050b8e602dd4daa999e55ec448783cfe202b` | `c2ab3c87edb4454c0c4fabf0563afb5fb82d4ceb0de3ab6419058145adbea5d6` |
+| release | `90279a6d60d610fc89a8313621de518caa5f0ef42309dfd4f658b55e09e20728` | `424549ad5a63c70cb06a44f40b4d914f917b902f6318c5718d5d4f25934898b3` |
+
+debug/release 均通过嵌套签名、系统依赖与部署目标检查，最终打包 helper 各通过 17 步离线检查，保持 PARTIAL。
+
+原生 release 的实际消费路径为 `.build/local/release/MeetingTape.app/Contents/MacOS/MeetingTape`，录音进程来自同一 App 的 `Contents/Helpers/meetingtape __host`。实际完成：
+
+- 107.955979 秒实录：关闭资料库后悬浮窗继续计时；展开/收起、编辑标题、停止、自动入库、标记及回听，重开后名称和标记保留。
+- 91.295813 秒实录：开始时自动停止资料库回听；四秒本地 440/660 Hz 测试音进入系统声道，解码峰值约 0.0761；麦克风声道也有非零采样。继续录音并退出后仅 host 存活，重开接管同一 session/进程，从精简伴随条停止保存。
+- “停止并退出”保存后，确认 GUI 与 host 均退出，重开读取完成文件。文件格式为 AAC、48 kHz、双声道。
+- 最终签名 release 另验证录制中自定义标题：命名后继续录音并退出，重开接管同一 session，展开显示原自定义标题；停止并退出后资料库索引仍保留该标题。标题按 sessionID 保存在偏好中，poll 先更新身份再恢复名称，防止错绑上一段录音，既有入库名称不被覆盖；Sol 对该差异只读复核完成。
+
+前两段业务验收使用修复主阻塞后的中间签名制品（GUI `da61cd94737ea61a832fb6a7ce3f5ca0a8d367fc06111a666e2600e1bdee40f6`、helper `424322135d1efde435ad5ce1ab553fd031788e24afe4a1b57944d048edf2227e`）；21.945188 秒的停止退出检查使用后续中间制品（GUI `463d44b772156192edf8d2366cac5ae1bf0a004c67fb7ad806851eb9b41454a8`、helper `d1b1352778233981e3bedddd4764134789d939797bc218c5ac3cb3db1d65bb22`）。最后的标题保留、后台接管与停止退出使用表内最终 release。实际文件和元数据保存在 `~/Documents/MeetingTape`。
+
+录音状态如实记录初始/收尾缺口及少量麦克风帧缺口；21 秒样本另报告 70 ms 处理超时和 20 ms 参考缺失的原麦旁路，不能称全程无缺口或无降级。系统声道测试不证明 AEC 音质；外放 AEC 仍 FAIL。拖动已执行但位置变化未独立观测；全局焦点、跨 Space/全屏置顶、设备/睡眠等此前缺口继续保留。没有运行 CI、上传录音、发布或合并。
+
+本轮本机证据索引：`<LOCAL_EVIDENCE_PATH>`。其中的临时材料可能被系统清理，制品哈希及上述范围随本文件保留。

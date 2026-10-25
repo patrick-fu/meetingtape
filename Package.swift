@@ -40,5 +40,6 @@ let package = Package(
             name: "MeetingTapeCLITests",
             dependencies: ["MeetingTapeCLI", "MeetingTapeCore"]
         ),
+        .testTarget(name: "MeetingTapeDesktopTests", dependencies: ["MeetingTapeDesktop"]),
     ]
 )

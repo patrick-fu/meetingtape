@@ -11,7 +11,12 @@ final class AppModel: ObservableObject {
     @Published var filter = "all"
     @Published var snapshot: SessionSnapshot?
     @Published var operation: String?
-    @Published var activeTitle = "新录音"
+    @Published var activeTitle = "新录音" {
+        didSet {
+            guard active, let sessionID = snapshot?.sessionID else { return }
+            defaults.set(["sessionID": sessionID, "title": activeTitle], forKey: "activeRecordingTitle")
+        }
+    }
     @Published var panelExpanded = false
     @Published var errorMessage: String?
     @Published var savedMessage: String?
@@ -122,8 +127,8 @@ final class AppModel: ObservableObject {
             guard requestedRevision == revision, operation == nil else { return }
             if value?.state == .failed, value?.sessionID == defaults.string(forKey: "dismissedFailedSession") { value = nil }
             let previous = snapshot
-            if value?.sessionID != previous?.sessionID, let value { activeTitle = defaultTitle(for: value) }
             snapshot = value
+            if value?.sessionID != previous?.sessionID, let value { activeTitle = defaultTitle(for: value) }
             if let value {
                 rememberDirectory(URL(fileURLWithPath: value.recoveryPath).deletingLastPathComponent().path)
                 if value.state == .completed { try acceptCompleted(value) }
@@ -226,6 +231,8 @@ final class AppModel: ObservableObject {
     }
 
     private func defaultTitle(for value: SessionSnapshot) -> String {
+        if let saved = defaults.dictionary(forKey: "activeRecordingTitle") as? [String: String],
+           saved["sessionID"] == value.sessionID, let title = saved["title"] { return title }
         let date = ISO8601DateFormatter().date(from: value.startedAt) ?? Date()
         return "录音 " + date.formatted(.dateTime.month(.twoDigits).day(.twoDigits).hour().minute())
     }
