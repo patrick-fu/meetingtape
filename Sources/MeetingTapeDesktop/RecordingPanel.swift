@@ -1,12 +1,13 @@
 import AppKit
 import SwiftUI
+import MeetingTapeTranscription
 
 final class RecordingPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
     init(model: AppModel) {
-        super.init(contentRect: NSRect(x: 0, y: 0, width: 308, height: 76), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        super.init(contentRect: NSRect(x: 0, y: 0, width: 196, height: 54), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         title = "MeetingTape 录音悬浮窗"
         level = .floating
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -14,15 +15,24 @@ final class RecordingPanel: NSPanel {
         isOpaque = false; backgroundColor = .clear; hasShadow = true
         isMovableByWindowBackground = true; isReleasedWhenClosed = false
         animationBehavior = .utilityWindow
-        contentView = PanelHostingView(rootView: RecordingPanelView(model: model))
+        contentView = PanelHostingView(rootView: RecordingPanelView(model: model, captions: model.liveCaptions))
+        setPinned(model.panelPinned)
         if let screen = NSScreen.main {
             let frame = screen.visibleFrame
-            setFrameOrigin(NSPoint(x: frame.maxX - 340, y: frame.maxY - 112))
+            setFrameOrigin(NSPoint(x: frame.maxX - 228, y: frame.maxY - 86))
         }
     }
 
+    func setPinned(_ pinned: Bool) {
+        let target: NSWindow.Level = pinned ? .floating : .normal
+        guard level != target || isFloatingPanel != pinned else { return }
+        level = target; isFloatingPanel = pinned
+        collectionBehavior = pinned ? [.canJoinAllSpaces, .fullScreenAuxiliary] : []
+        if pinned && isVisible { orderFrontRegardless() }
+    }
+
     func resize(expanded: Bool) {
-        let size = NSSize(width: expanded ? 392 : 308, height: expanded ? 310 : 76)
+        let size = NSSize(width: expanded ? 380 : 196, height: expanded ? 320 : 54)
         guard frame.size != size else { return }
         var origin = NSPoint(x: frame.maxX - size.width, y: frame.maxY - size.height)
         let visible = screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? frame
@@ -47,79 +57,188 @@ private struct PanelDragRegion: NSViewRepresentable {
 
 private struct RecordingPanelView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var captions: LiveCaptionModel
+    @State private var following = true
     private var elapsed: Double { model.snapshot?.elapsedSeconds ?? 0 }
     private var stopping: Bool { model.operation != nil || model.snapshot?.state == .finalizing || model.snapshot?.state == .stopping }
+    private var captureIssue: String? {
+        guard model.snapshot?.state == .interrupted else { return nil }
+        let missing = [("系统音频", model.snapshot?.systemAvailable == true), ("麦克风", model.snapshot?.microphoneAvailable == true)].filter { !$0.1 }.map(\.0)
+        return missing.joined(separator: "、") + "中断，正在重连"
+    }
 
     var body: some View {
         Group {
             if model.panelExpanded { expanded } else { compact }
         }
-        .frame(width: model.panelExpanded ? 392 : 308, height: model.panelExpanded ? 310 : 76)
-        .background(.background.opacity(0.97), in: RoundedRectangle(cornerRadius: 25))
-        .overlay(RoundedRectangle(cornerRadius: 25).stroke(Color.primary.opacity(0.12), lineWidth: 0.7))
-        .clipShape(RoundedRectangle(cornerRadius: 25))
-        .overlay(alignment: .topLeading) {
-            PanelDragRegion().frame(width: model.panelExpanded ? 230 : 146, height: model.panelExpanded ? 32 : 50)
-                .padding(.top, model.panelExpanded ? 9 : 13).padding(.leading, 19)
+        .frame(width: model.panelExpanded ? 380 : 196, height: model.panelExpanded ? 320 : 54)
+        .background(.background.opacity(0.97), in: RoundedRectangle(cornerRadius: model.panelExpanded ? 16 : 12))
+        .overlay(RoundedRectangle(cornerRadius: model.panelExpanded ? 16 : 12).stroke(Color.primary.opacity(0.10), lineWidth: 0.7))
+        .clipShape(RoundedRectangle(cornerRadius: model.panelExpanded ? 16 : 12))
+        .overlay(alignment: model.panelExpanded ? .bottomLeading : .topLeading) {
+            PanelDragRegion().frame(width: model.panelExpanded ? 125 : 100, height: model.panelExpanded ? 40 : 25)
+                .padding(.leading, 10).padding(model.panelExpanded ? .bottom : .top, 3)
         }
     }
 
     private var compact: some View {
-        HStack(spacing: 15) {
-            Text(recordingTime(elapsed)).font(.system(size: 21, weight: .regular)).monospacedDigit().foregroundStyle(model.snapshot?.state == .interrupted ? .orange : Color.secondary)
-            LiveWave(levels: Array(model.liveLevels.suffix(10))).frame(width: 51, height: 23).accessibilityLabel("录音电平")
-            Spacer(minLength: 0)
-            stopButton(width: 43)
-            Rectangle().fill(Color.primary.opacity(0.12)).frame(width: 1, height: 23)
-            Button { model.panelExpanded = true; model.onChange?() } label: { Image(systemName: "chevron.down").font(.system(size: 14)).foregroundStyle(.secondary).frame(width: 24, height: 36) }.buttonStyle(.plain).accessibilityLabel("展开录音悬浮窗")
-        }.padding(.horizontal, 19)
+        VStack(spacing: 0) {
+            HStack(spacing: 4) {
+                Text(recordingTime(elapsed)).font(.system(size: 9)).monospacedDigit().foregroundStyle(.secondary)
+                LiveWave(levels: Array(model.liveLevels.suffix(8))).frame(width: 27, height: 10).accessibilityLabel("录音电平")
+                if captions.message != nil || model.snapshot?.state == .interrupted {
+                    Circle().fill(.orange).frame(width: 3, height: 3).help(captions.message ?? model.statusText).accessibilityLabel(captions.message ?? model.statusText)
+                }
+                Spacer(minLength: 0)
+                stopButton(size: 20)
+                pinButton(size: 20)
+                resizeButton(expanded: true, size: 20)
+            }.padding(.leading, 10).padding(.trailing, 7).padding(.top, 3).frame(height: 27)
+            Text(captions.currentLine)
+                .font(.system(size: 11)).lineLimit(1).truncationMode(.head)
+                .foregroundStyle(captions.segments.isEmpty ? .secondary : .primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10).padding(.bottom, 8).frame(height: 27)
+                .accessibilityLabel("实时字幕：" + captions.currentLine)
+        }
     }
 
     private var expanded: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 15) {
-                Spacer()
-                Button { model.onOpenLibrary?() } label: { Image(systemName: "arrow.up.left.and.arrow.down.right").frame(width: 24, height: 27) }.buttonStyle(.plain).accessibilityLabel("打开资料库")
-                Button { model.panelExpanded = false; model.onChange?() } label: { Image(systemName: "chevron.up").frame(width: 24, height: 27) }.buttonStyle(.plain).accessibilityLabel("收起录音悬浮窗")
-            }.font(.system(size: 14)).foregroundStyle(.secondary).padding(.top, 14).padding(.trailing, 19)
-            TextField("新录音", text: $model.activeTitle).font(.system(size: 22, weight: .medium)).textFieldStyle(.plain).padding(.horizontal, 30).padding(.top, 10).disabled(stopping).accessibilityLabel("正在录制的标题")
+            HStack(spacing: 7) {
+                Circle().fill(.red.opacity(0.6)).frame(width: 4, height: 4)
+                TextField("新录音", text: $model.activeTitle).font(.system(size: 12, weight: .medium))
+                    .textFieldStyle(.plain).disabled(stopping).accessibilityLabel("正在录制的标题")
+                Spacer(minLength: 4)
+                Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(captions.finalText, forType: .string) } label: {
+                    Image(systemName: "doc.on.doc").frame(width: 24, height: 24)
+                }.buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(.secondary)
+                    .disabled(captions.finalText.isEmpty).accessibilityLabel("复制已定稿字幕")
+                pinButton(size: 24)
+                resizeButton(expanded: false, size: 24)
+            }.padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 8)
             if model.snapshot?.state == .failed {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(model.errorMessage ?? model.snapshot?.failureReason ?? model.statusText).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(3).textSelection(.enabled)
-                    HStack { Button("恢复录音") { model.recover() }; Button("查看恢复材料") { model.revealRecovery() } }.font(.system(size: 11)).disabled(stopping)
-                    Button("保留材料，继续使用") { model.keepFailedMaterials() }.font(.system(size: 11)).buttonStyle(.plain).foregroundStyle(.secondary).disabled(stopping)
-                }.padding(.horizontal, 30).frame(maxHeight: .infinity)
+                failure
             } else {
-                LiveWave(levels: model.liveLevels).frame(height: 62).padding(.horizontal, 30).padding(.top, 27)
-                HStack(spacing: 18) {
-                    source("系统音频", available: model.snapshot?.systemAvailable ?? false)
-                    source("麦克风", available: model.snapshot?.microphoneAvailable ?? false)
-                }.padding(.horizontal, 30).padding(.top, 16)
-                if model.snapshot?.state == .interrupted {
-                    Text(model.statusText).font(.system(size: 10)).foregroundStyle(.orange).padding(.leading, 30).padding(.top, 8)
+                transcript
+                if let captureIssue { Text(captureIssue).font(.system(size: 10)).foregroundStyle(.orange).padding(.horizontal, 16).padding(.vertical, 5) }
+                if let message = captions.message {
+                    HStack(spacing: 7) {
+                        Text(message).lineLimit(2)
+                        Spacer(minLength: 2)
+                        if captions.enabled { Button("重连") { captions.retry() }.buttonStyle(.plain).disabled(!captions.canRetry).help("从当前录音位置重新连接字幕") }
+                    }.font(.system(size: 10)).foregroundStyle(.orange).padding(.horizontal, 16).padding(.vertical, 6)
                 }
-                Spacer(minLength: 0)
             }
-            HStack {
-                Text(recordingTime(elapsed)).font(.system(size: 22)).monospacedDigit().foregroundStyle(.secondary)
-                Spacer()
-                stopButton(width: 86)
-            }.padding(.horizontal, 30).padding(.bottom, 22)
+            HStack(spacing: 9) {
+                Text(recordingTime(elapsed)).font(.system(size: 12)).monospacedDigit().foregroundStyle(.secondary)
+                LiveWave(levels: Array(model.liveLevels.suffix(8))).frame(width: 40, height: 14).accessibilityLabel("录音电平")
+                Spacer(minLength: 0)
+                Button { model.onOpenLibrary?() } label: { Image(systemName: "rectangle.split.2x1").frame(width: 24, height: 24) }
+                    .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("打开资料库")
+                stopButton(size: 28)
+            }.padding(.horizontal, 15).padding(.vertical, 10)
+                .overlay(alignment: .top) { Divider().padding(.horizontal, 14) }
         }
     }
 
-    private func source(_ title: String, available: Bool) -> some View {
-        HStack(spacing: 6) { Circle().fill(available ? Color.green.opacity(0.65) : .orange).frame(width: 4, height: 4); Text(title).foregroundStyle(.secondary) }.font(.system(size: 10))
+    private var transcript: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    ForEach(captions.segments) { segment in
+                        HStack(alignment: .top, spacing: 9) {
+                            Text(recordingTime(segment.start)).font(.system(size: 9)).monospacedDigit().foregroundStyle(.tertiary).frame(width: 30, alignment: .leading).padding(.top, 3)
+                            Text(segment.text).font(.system(size: segment.final ? 14 : 15)).foregroundStyle(segment.final ? .secondary : .primary).textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    if captions.segments.isEmpty {
+                        if captions.enabled {
+                            Text(captions.currentLine).font(.system(size: 12)).foregroundStyle(.secondary).padding(.top, 15)
+                        }
+                    }
+                    if !captions.enabled { Button("开启实时字幕") { captions.setEnabled(true) }.font(.system(size: 12)).padding(.top, 18) }
+                    Color.clear.frame(height: 1).id("latest")
+                }.padding(.horizontal, 16).padding(.top, 5).padding(.bottom, 8)
+                    .background(ScrollReadingObserver(following: $following))
+            }
+            .overlay(alignment: .bottom) {
+                if !following {
+                    Button("回到最新") { following = true; proxy.scrollTo("latest", anchor: .bottom) }
+                        .font(.system(size: 10)).buttonStyle(.bordered).padding(.bottom, 6)
+                }
+            }
+            .onChange(of: captions.segments) { _, _ in
+                if following { proxy.scrollTo("latest", anchor: .bottom) }
+            }
+            .onAppear { following = true; proxy.scrollTo("latest", anchor: .bottom) }
+            .onChange(of: captions.sessionID) { _, _ in following = true }
+        }.frame(maxHeight: .infinity)
     }
 
-    private func stopButton(width: CGFloat) -> some View {
+    private var failure: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(model.errorMessage ?? model.snapshot?.failureReason ?? model.statusText).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(4).textSelection(.enabled)
+            HStack { Button("恢复录音") { model.recover() }; Button("查看恢复材料") { model.revealRecovery() } }.font(.system(size: 11)).disabled(stopping)
+            Button("保留材料，继续使用") { model.keepFailedMaterials() }.font(.system(size: 11)).buttonStyle(.plain).foregroundStyle(.secondary).disabled(stopping)
+        }.padding(.horizontal, 16).frame(maxHeight: .infinity)
+    }
+
+    private func pinButton(size: CGFloat) -> some View {
+        Button { model.panelPinned.toggle() } label: {
+            Image(systemName: model.panelPinned ? "pin.fill" : "pin").font(.system(size: 11))
+                .foregroundStyle(model.panelPinned ? Color.accentColor.opacity(0.7) : Color.secondary)
+                .frame(width: size, height: size)
+                .background(model.panelPinned ? Color.accentColor.opacity(0.07) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        }.buttonStyle(.plain).accessibilityLabel(model.panelPinned ? "取消置顶" : "置顶")
+            .accessibilityValue(model.panelPinned ? "已置顶" : "未置顶").help(model.panelPinned ? "取消置顶" : "置顶")
+    }
+
+    private func resizeButton(expanded: Bool, size: CGFloat) -> some View {
+        Button { model.panelExpanded = expanded; model.onChange?() } label: {
+            Image(systemName: expanded ? "chevron.down" : "chevron.up").font(.system(size: 10)).foregroundStyle(.secondary).frame(width: size, height: size)
+        }.buttonStyle(.plain).accessibilityLabel(expanded ? "展开字幕窗" : "收起字幕窗")
+    }
+
+    private func stopButton(size: CGFloat) -> some View {
         Button { Task { _ = await model.stop() } } label: {
             Group {
-                if stopping { ProgressView().controlSize(.small).scaleEffect(0.7) }
-                else { RoundedRectangle(cornerRadius: 3.5).fill(Color.primary).frame(width: 15, height: 15) }
-            }.frame(width: width, height: 43).background(Color.primary.opacity(0.045), in: Capsule())
+                if stopping { ProgressView().controlSize(.small).scaleEffect(0.5) }
+                else { RoundedRectangle(cornerRadius: 2).fill(Color.primary).frame(width: size == 20 ? 7 : 10, height: size == 20 ? 7 : 10) }
+            }.frame(width: size, height: size).background(Color.primary.opacity(0.045), in: Circle())
         }.buttonStyle(.plain).disabled(!model.canStop).accessibilityLabel(stopping ? model.statusText : "停止录音")
     }
+}
+
+private struct ScrollReadingObserver: NSViewRepresentable {
+    @Binding var following: Bool
+    final class ObserverView: NSView {
+        var changed: ((Bool) -> Void)?
+        var monitor: Any?
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            stop()
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                MainActor.assumeIsolated {
+                    guard let self, event.window === self.window,
+                          let scroll = self.enclosingScrollView,
+                          scroll.bounds.contains(scroll.convert(event.locationInWindow, from: nil)) else { return }
+                    self.changed?(false)
+                    DispatchQueue.main.async { [weak self, weak scroll] in
+                        guard let scroll, let document = scroll.documentView else { return }
+                        self?.changed?(scroll.contentView.bounds.maxY >= document.bounds.maxY - 24)
+                    }
+                }
+                return event
+            }
+        }
+        func stop() { if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil }
+    }
+    func makeNSView(context: Context) -> ObserverView { let view = ObserverView(); view.changed = { following = $0 }; return view }
+    func updateNSView(_ view: ObserverView, context: Context) { view.changed = { following = $0 } }
+    static func dismantleNSView(_ view: ObserverView, coordinator: ()) { view.stop() }
 }
 
 private struct LiveWave: View {
@@ -129,7 +248,7 @@ private struct LiveWave: View {
             guard !levels.isEmpty else { return }
             let step = size.width / Double(levels.count)
             for (index, level) in levels.enumerated() {
-                let height = max(4, level * size.height)
+                let height = max(2, level * size.height)
                 let rect = CGRect(x: Double(index) * step, y: (size.height - height) / 2, width: min(3, step - 1), height: height)
                 context.fill(Path(roundedRect: rect, cornerRadius: 1.5), with: .color(.secondary.opacity(0.6)))
             }

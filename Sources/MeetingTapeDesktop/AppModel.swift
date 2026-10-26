@@ -18,6 +18,9 @@ final class AppModel: ObservableObject {
         }
     }
     @Published var panelExpanded = false
+    @Published var panelPinned = UserDefaults.standard.object(forKey: "recordingPanelPinned") as? Bool ?? true {
+        didSet { defaults.set(panelPinned, forKey: "recordingPanelPinned"); onChange?() }
+    }
     @Published var errorMessage: String?
     @Published var savedMessage: String?
     @Published private(set) var libraryReadOnly = false
@@ -31,8 +34,10 @@ final class AppModel: ObservableObject {
     @Published var keepRaw: Bool
     var onChange: (() -> Void)?
     var onOpenLibrary: (() -> Void)?
+    var onShowRecordingPanel: (() -> Void)?
     private let client = RecordingClient()
     let transcription = TranscriptionModel()
+    let liveCaptions = LiveCaptionModel()
     private let files = LibraryFiles()
     private let defaults = UserDefaults.standard
     private var saveTask: Task<Void, Never>?
@@ -104,7 +109,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func flush() async { await saveTask?.value }
+    func flush() async { await saveTask?.value; await liveCaptions.shutdown() }
 
     func refreshLibrary() async {
         var directories = defaults.stringArray(forKey: "recordingDirectories") ?? []
@@ -129,14 +134,20 @@ final class AppModel: ObservableObject {
             guard requestedRevision == revision, operation == nil else { return }
             if value?.state == .failed, value?.sessionID == defaults.string(forKey: "dismissedFailedSession") { value = nil }
             let previous = snapshot
+            if let previous, previous.sessionID != value?.sessionID {
+                await refreshLibrary()
+                guard requestedRevision == revision, operation == nil else { return }
+                liveCaptions.observe(records.first { $0.snapshot.sessionID == previous.sessionID }?.snapshot)
+            }
             snapshot = value
             if value?.sessionID != previous?.sessionID, let value { activeTitle = defaultTitle(for: value) }
             if let value {
+                liveCaptions.observe(value)
                 rememberDirectory(URL(fileURLWithPath: value.recoveryPath).deletingLastPathComponent().path)
                 if value.state == .completed { try acceptCompleted(value) }
                 if value.state == .failed { panelExpanded = true }
-            } else if previous != nil {
-                await refreshLibrary()
+            } else {
+                liveCaptions.observe(nil)
             }
             if active {
                 stopPlayback()
@@ -165,6 +176,7 @@ final class AppModel: ObservableObject {
                 let value = try await client.run(["start", "--out", destination, "--json"] + (raw ? ["--keep-raw"] : []))
                 guard let value, value.state == .recording else { throw DesktopFailure(message: "录音尚未就绪。") }
                 snapshot = value; activeTitle = defaultTitle(for: value)
+                liveCaptions.observe(value, fromStart: true)
                 rememberDirectory(destination)
             } catch { errorMessage = error.localizedDescription }
             operation = nil; onChange?()
@@ -177,6 +189,7 @@ final class AppModel: ObservableObject {
         revision += 1; operation = "正在保存录音"; errorMessage = nil; onChange?()
         do {
             guard let value = try await client.run(["stop", "--session", expected, "--json"]) else { throw DesktopFailure(message: "未收到录音保存结果。") }
+            liveCaptions.observe(value)
             try acceptCompleted(value)
             snapshot = nil; operation = nil; savedMessage = libraryReadOnly ? "录音文件已保存；资料库整理信息未保存" : "已保存到资料库"; onChange?()
             return true
