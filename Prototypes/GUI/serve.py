@@ -18,7 +18,8 @@ if __name__ == '__main__':
     root = Path(__file__).resolve().parent
     handler = functools.partial(Handler, directory=str(root))
     server = ThreadingHTTPServer(('127.0.0.1', args.port), handler)
-    print(f'MeetingTape GUI: http://127.0.0.1:{args.port}/?variant=F', flush=True)
+    print(f'MeetingTape captions: http://127.0.0.1:{args.port}/?study=captions&variant=B', flush=True)
+    print(f'MeetingTape original: http://127.0.0.1:{args.port}/?variant=F', flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
