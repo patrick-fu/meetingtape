@@ -34,7 +34,23 @@ One recording from start to stop, including automatic recovery after system slee
 _Avoid_: recording job
 
 **转写（Transcription）**:
-对已保存的录音进行语音识别，生成可按时间定位的文字。
+对录音中的语音进行识别，生成可按时间定位的原文；包括录音中的实时转写与保存后的录后转写。
+
+**实时字幕翻译（Live subtitle translation）**:
+将录音中识别出的非目标语言内容转换为目标语言文字；不包含译音播报，已为目标语言的内容无需重复翻译。
+_Avoid_: 同声传译、语音同传
+
+**目标语言字幕（Target-language captions）**:
+以目标语言呈现并保留的字幕；可以来自翻译，也可以直接沿用已经是目标语言的内容，无需再保存一份重复的独立原稿。
+
+**分音源识别（Separate-source recognition）**:
+分别识别系统音频与麦克风音频，结果保留来源与共同录音时间轴；音源不等同于说话人身份。
+
+**合并识别（Mixed-source recognition）**:
+将系统音频与麦克风音频混合后识别，所得正文无法据此可靠区分两种音源。
+
+**覆盖区间（Coverage interval）**:
+一段录音中某项转写或翻译功能实际开启、关闭或不可用的时间范围及其原因。
 
 **转写任务（Transcription task）**:
 对一段已保存的录音，使用所选一个或多个模型生成转写结果的一次处理。
@@ -58,4 +74,4 @@ The process macOS attributes a permission request to, determined by the launch c
 _Avoid_: parent process, caller
 
 **Bundle identifier**:
-`com.paaatrickfu.meetingtape`, shared by the CLI and the future GUI so TCC grants carry across product forms.
+操作系统识别 App 或 CLI 代码身份的标识；产品的不同程序可以有不同标识，授权归属还取决于实际责任进程与签名身份。
