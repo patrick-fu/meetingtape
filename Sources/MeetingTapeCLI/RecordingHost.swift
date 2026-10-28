@@ -145,7 +145,8 @@ enum HostCommand {
         interrupt.setEventHandler(handler: finish)
         termination.resume()
         interrupt.resume()
-        let configuration = RecordingConfiguration(outputDirectory: out, keepRawMicrophone: keepRaw)
+        let mode = (try? TranscriptionStore().settings().recognitionMode) ?? .separate
+        let configuration = RecordingConfiguration(outputDirectory: out, keepRawMicrophone: keepRaw, recognitionMode: mode)
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let host = try RecordingHost(paths: HostPaths(), onCompleted: { TranscriptionManager.automatic($0) })

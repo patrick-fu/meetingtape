@@ -5,10 +5,12 @@ public struct RecordingConfiguration: Codable, Sendable, Equatable {
     public var outputDirectory: String
     /// Also keep the raw microphone track as a separate file.
     public var keepRawMicrophone: Bool
+    public var recognitionMode: RecognitionMode?
 
-    public init(outputDirectory: String, keepRawMicrophone: Bool = false) {
+    public init(outputDirectory: String, keepRawMicrophone: Bool = false, recognitionMode: RecognitionMode? = nil) {
         self.outputDirectory = outputDirectory
         self.keepRawMicrophone = keepRawMicrophone
+        self.recognitionMode = recognitionMode
     }
 }
 

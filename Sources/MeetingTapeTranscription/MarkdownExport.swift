@@ -15,7 +15,7 @@ public struct TranscriptExportVersion: Sendable, Identifiable {
     }
 
     public init(live: LiveCaptionArchive) {
-        id = "live"; title = "豆包实时稿 · 合并识别"
+        id = "live"; title = "豆包实时稿 · " + live.recognitionMode.name
         self.live = live; task = nil; run = nil; result = nil
     }
 }
@@ -55,7 +55,7 @@ public struct TranscriptExportSnapshot: Sendable {
         }
         if let live = try captions.readSnapshot(sessionID) { versions.append(TranscriptExportVersion(live: live)) }
         guard !versions.isEmpty else { throw TranscriptionFailure("这段录音还没有转写版本。") }
-        return Self(title: title, versions: versions, duration: tasks.first?.duration)
+        return Self(title: title, versions: versions, duration: tasks.first?.duration ?? versions.compactMap(\.live).first?.coverage.map(\.end).max())
     }
 
     public func markdown(primary: String, includeVersions: Bool = false) throws -> String {
@@ -86,11 +86,38 @@ public struct TranscriptExportSnapshot: Sendable {
             if version.result?.segments.isEmpty != false { lines += [run.state == .succeeded ? "未识别到语音。" : "未取得完整正文，已保存的结果将保留。", ""] }
         }
         if let live = version.live {
-            lines += ["状态：\(live.complete ? "完成" : "部分字幕，含未覆盖或未定稿区间")", "", "覆盖：历史未记录开关与连接区间，不能推断为全程开启。", ""]
+            lines += ["状态：\(live.complete ? "完成" : "部分字幕，含未覆盖或未定稿区间")", ""]
             for segment in live.segments {
-                lines += ["**[\(time(segment.start))–\(time(segment.end))] 合并音源\(segment.final ? "" : " · 未定稿")**", "", text(segment.text), ""]
+                lines += ["**[\(time(segment.start))–\(time(segment.end))] \(segment.source.name)\(segment.final ? "" : " · 未定稿")**", ""]
+                if !segment.text.isEmpty { lines += ["原文：" + text(segment.text), ""] }
+                if let translation = segment.translation {
+                    let language = text(SubtitleLanguage.name(translation.targetLanguage))
+                    switch translation.state {
+                    case .translated: lines += ["译文（\(language)）：" + text(translation.text ?? ""), ""]
+                    case .sameLanguage:
+                        if segment.text.isEmpty { lines += ["目标语言字幕（\(language)）：" + text(translation.text ?? ""), ""] }
+                        lines += ["无需翻译。", ""]
+                    case .pending: lines += ["译文（\(language)）：未取得定稿译文。", ""]
+                    case .failed: lines += ["译文（\(language)）：翻译失败。", ""]
+                    }
+                }
             }
             if live.segments.isEmpty { lines += ["未取得字幕正文。", ""] }
+            lines += ["### 实时功能覆盖", ""]
+            if live.coverage.isEmpty { lines += ["历史未记录开关与连接区间，不能推断为全程开启。", ""] }
+            else {
+                lines += ["| 录音区间 [起点, 终点) | 音源 | 功能 | 状态 | 目标语言 |", "| --- | --- | --- | --- | --- |"]
+                for interval in live.coverage.filter({ $0.end > $0.start }).sorted(by: { $0.start == $1.start ? $0.id < $1.id : $0.start < $1.start }) {
+                    let feature = interval.feature == "transcription" ? "转写" : "字幕翻译"
+                    let status = interval.state == "disabled" ? "该期间未开启" + feature : interval.state == "enabled" ? "已开启" : "历史未记录"
+                    lines += ["| \(time(interval.start))–\(time(interval.end)) | \(interval.source.name) | \(feature) | \(status) | \(interval.targetLanguage.map { text(SubtitleLanguage.name($0)) } ?? "—") |"]
+                }
+                lines.append("")
+            }
+            for connection in live.connections {
+                lines += ["- \(connection.source.name)连接：\(time(connection.start))–\(time(connection.end))，\(connection.state == "completed" ? "完成" : connection.state == "cancelled" ? "已停止" : connection.state == "failed" ? "识别连接失败" : "运行中")；仅描述该连接已处理区间，连接间空档不自动补录。"]
+            }
+            lines += ["", "以上只描述实时功能，不改变录音文件和其他录后版本的覆盖。", ""]
         }
         return lines
     }
@@ -98,7 +125,20 @@ public struct TranscriptExportSnapshot: Sendable {
     private static func statistics(_ version: TranscriptExportVersion) -> [String] {
         var lines = ["### " + text(version.title), ""]
         guard let run = version.run, let task = version.task else {
-            return lines + ["运行耗时、CPU、内存：未采集。云端资源与用量：不可得，服务未提供。", ""]
+            if let live = version.live {
+                for connection in live.connections {
+                    lines += ["- 实时识别 · \(connection.source.name)：连接运行耗时 \(seconds(connection.elapsedSeconds))，包含等待新音频、网络与尾句收尾。"]
+                }
+                for segment in live.segments {
+                    if let translation = segment.translation {
+                        lines += ["- 字幕翻译 · \(segment.source.name) · \(time(segment.start)) · \(text(SubtitleLanguage.name(translation.targetLanguage))) · \(text(translation.provider))：耗时 \(seconds(translation.elapsedSeconds))。"]
+                        if let usage = translation.usage, !usage.isEmpty {
+                            lines += ["  服务返回用量：" + usage.keys.sorted().map { "\($0)=\(usage[$0]!) tokens" }.joined(separator: "，") + "。"]
+                        }
+                    }
+                }
+            }
+            return lines + ["CPU、内存：未采集。云端资源不可得；未返回的计费用量不作估算。", ""]
         }
         lines += ["| 音源 / 尝试 | 状态 | 已处理音频 | 排队耗时 | 执行耗时 | 总耗时 | CPU 累计时间 | 峰值 RSS |", "| --- | --- | --- | --- | --- | --- | --- | --- |"]
         for source in run.sources {
