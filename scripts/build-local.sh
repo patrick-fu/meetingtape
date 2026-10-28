@@ -22,11 +22,13 @@ rm -f "$BUILD_DIRECTORY/meetingtape"
 swift build -c "$CONFIGURATION" --product meetingtape \
     -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$ROOT/Resources/Info.plist"
 DESTINATION="$ROOT/.build/local/$CONFIGURATION"
+TIMESTAMP="--timestamp=none"
+if [[ "$CONFIGURATION" == release ]]; then TIMESTAMP="--timestamp"; fi
 mkdir -p "$DESTINATION"
 cp "$BUILD_DIRECTORY/meetingtape" "$DESTINATION/meetingtape.next"
 mkdir -p "$DESTINATION/Transcription"
 cp -R "$ROOT/Resources/Transcription/." "$DESTINATION/Transcription/"
-/usr/bin/codesign --force --options runtime --timestamp=none --entitlements "$ROOT/Resources/meetingtape.entitlements" \
+/usr/bin/codesign --force --options runtime "$TIMESTAMP" --entitlements "$ROOT/Resources/meetingtape.entitlements" \
     --identifier com.paaatrickfu.meetingtape --sign "$IDENTITY" "$DESTINATION/meetingtape.next"
 mv -f "$DESTINATION/meetingtape.next" "$DESTINATION/meetingtape"
 /usr/bin/codesign --verify --strict --verbose=2 "$DESTINATION/meetingtape"

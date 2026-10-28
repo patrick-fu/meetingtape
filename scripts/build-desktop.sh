@@ -20,7 +20,13 @@ cp "$ROOT/.build/local/$CONFIGURATION/meetingtape" "$APP/Contents/Helpers/meetin
 mv -f "$APP/Contents/Helpers/meetingtape.next" "$APP/Contents/Helpers/meetingtape"
 mkdir -p "$APP/Contents/Resources/Transcription"
 cp -R "$ROOT/Resources/Transcription/." "$APP/Contents/Resources/Transcription/"
-/usr/bin/codesign --force --options runtime --timestamp=none --entitlements "$ROOT/Resources/meetingtape.entitlements" --sign "$IDENTITY" "$APP"
+mkdir -p "$APP/Contents/Resources/ThirdParty"
+cp -R "$ROOT/Resources/ThirdParty/." "$APP/Contents/Resources/ThirdParty/"
+cp "$ROOT/LICENSE" "$APP/Contents/Resources/LICENSE"
+if [[ -f "$ROOT/Resources/AppIcon.icns" ]]; then cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"; fi
+TIMESTAMP="--timestamp=none"
+if [[ "$CONFIGURATION" == release ]]; then TIMESTAMP="--timestamp"; fi
+/usr/bin/codesign --force --options runtime "$TIMESTAMP" --entitlements "$ROOT/Resources/meetingtape.entitlements" --sign "$IDENTITY" "$APP"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
 /usr/bin/shasum -a 256 "$APP/Contents/MacOS/MeetingTape" "$APP/Contents/Helpers/meetingtape" > "$ROOT/.build/local/$CONFIGURATION/desktop-sha256.txt"
 echo "$APP"
