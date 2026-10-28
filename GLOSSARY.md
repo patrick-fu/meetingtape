@@ -40,6 +40,9 @@ _Avoid_: recording job
 将录音中识别出的非目标语言内容转换为目标语言文字；不包含译音播报，已为目标语言的内容无需重复翻译。
 _Avoid_: 同声传译、语音同传
 
+**目标语言字幕（Target-language captions）**:
+以目标语言呈现并保留的字幕；可以来自翻译，也可以直接沿用已经是目标语言的内容，无需再保存一份重复的独立原稿。
+
 **分音源识别（Separate-source recognition）**:
 分别识别系统音频与麦克风音频，结果保留来源与共同录音时间轴；音源不等同于说话人身份。
 
@@ -71,4 +74,4 @@ The process macOS attributes a permission request to, determined by the launch c
 _Avoid_: parent process, caller
 
 **Bundle identifier**:
-`com.paaatrickfu.meetingtape`, shared by the CLI and the future GUI so TCC grants carry across product forms.
+操作系统识别 App 或 CLI 代码身份的标识；产品的不同程序可以有不同标识，授权归属还取决于实际责任进程与签名身份。
