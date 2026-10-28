@@ -44,6 +44,13 @@ public actor LiveCaptionSession {
         do {
             guard origin.isFinite, origin >= 0, origin <= 86400 else { throw TranscriptionFailure("实时字幕的起始时间无效。") }
             if let saved = try await store.load(snapshot.sessionID) { document = saved; previous = saved.segments }
+        } catch {
+            document.complete = false; document.partial = true
+            document.message = "无法读取已有字幕，原文件已保留：\(error.localizedDescription)"
+            await update(document)
+            return document
+        }
+        do {
             document.complete = false; document.partial = document.partial || origin > 0; document.message = nil
             let key = try credential ?? TranscriptionCredentials.load()
             var request = URLRequest(url: URL(string: "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async")!)

@@ -53,3 +53,18 @@ import Testing
     #expect(tail.contains { abs($0) > 0.01 })
     #expect(try reader.readFinal(completed) == nil)
 }
+
+@Test func unreadableCaptionArchiveIsPreservedWhenReconnecting() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("meetingtape-caption-preservation-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let snapshot = SessionSnapshot(recoveryPath: root.appendingPathComponent("recovery").path)
+    let path = root.appendingPathComponent(snapshot.sessionID + ".json")
+    let original = Data("{\"schemaVersion\":99,\"originalText\":\"保留已有字幕\"}".utf8)
+    try original.write(to: path)
+    let service = LiveCaptionSession(snapshot: snapshot, store: LiveCaptionStore(directory: root), credential: DoubaoCredential(apiKey: "unused"))
+    let result = await service.run { _ in }
+    #expect(!result.complete)
+    #expect(result.message != nil)
+    #expect(try Data(contentsOf: path) == original)
+}
