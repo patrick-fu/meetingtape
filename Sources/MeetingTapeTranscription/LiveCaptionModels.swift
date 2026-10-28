@@ -92,6 +92,7 @@ public actor LiveCaptionStore {
 
     public func save(_ value: LiveCaptionArchive) throws {
         let path = try file(value.sessionID)
+        guard value.segments.count <= 20_000 else { throw TranscriptionFailure("实时字幕已达到单次文本上限，已有归档已保留。") }
         let data = try JSONEncoder().encode(value)
         guard data.count <= 16 * 1_048_576 else { throw TranscriptionFailure("实时字幕已达到单次保存上限。") }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])

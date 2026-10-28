@@ -68,3 +68,17 @@ import Testing
     #expect(result.message != nil)
     #expect(try Data(contentsOf: path) == original)
 }
+
+@Test func combinedSourceLimitPreservesLastReadableArchive() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("meetingtape-caption-limit-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = LiveCaptionStore(directory: root)
+    var archive = LiveCaptionArchive(sessionID: UUID().uuidString.lowercased())
+    archive.segments = [LiveCaptionSegment(id: "saved", start: 0, end: 1, text: "已有原稿", final: true)]
+    try await store.save(archive)
+    let path = root.appendingPathComponent(archive.sessionID + ".json"), before = try Data(contentsOf: root.appendingPathComponent(archive.sessionID + ".json"))
+    archive.segments = (0...20_000).map { LiveCaptionSegment(id: String($0), start: 0, end: 1, text: "双路合计超限", final: true) }
+    await #expect(throws: (any Error).self) { try await store.save(archive) }
+    #expect(try Data(contentsOf: path) == before)
+    #expect(try await store.load(archive.sessionID)?.segments.first?.text == "已有原稿")
+}
