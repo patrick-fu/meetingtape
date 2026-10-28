@@ -17,6 +17,7 @@ struct TranscriptSection: View {
             HStack {
                 Text("语音转写").font(.system(size: 17, weight: .semibold))
                 Spacer()
+                if let task { TranscriptExportButton(item: item, primary: task.id + ":" + (reading ?? task.primaryModel).rawValue) }
                 if let task, !task.finished { ProgressView().controlSize(.small); Text(task.state == "waitingForRecording" ? "录音优先，转写等待中" : "正在转写").font(.system(size: 11)).foregroundStyle(.secondary) }
             }
             HStack(spacing: 15) {
@@ -40,21 +41,24 @@ struct TranscriptSection: View {
                             HStack(spacing: 5) {
                                 Text(run.model.name)
                                 if run.model == task.primaryModel { Text("主稿").font(.system(size: 9)) }
-                                if run.state == .failed { Image(systemName: "exclamationmark.circle") }
+                                if run.state == .failed || run.state == .partial { Image(systemName: "exclamationmark.circle") }
                             }.font(.system(size: 11)).padding(.horizontal, 10).padding(.vertical, 6)
                                 .background((reading ?? task.primaryModel) == run.model ? Color.accentColor.opacity(0.1) : Color.primary.opacity(0.035), in: Capsule())
                         }.buttonStyle(.plain)
                     }
                 }
-                ForEach(task.runs.filter { $0.state == .failed }) { run in
-                    HStack(alignment: .top) {
-                        Text("\(run.model.name)：\(run.error ?? "转写失败")").font(.system(size: 11)).foregroundStyle(.orange).textSelection(.enabled)
-                        Spacer()
-                        Button("重试 \(run.model.name)") { transcription.retry(task, model: run.model) }.font(.system(size: 11)).disabled(!task.finished || transcription.busy)
+                ForEach(task.runs) { run in
+                    ForEach(run.sources.filter { $0.state == .failed || $0.state == .partial }) { source in
+                        HStack(alignment: .top) {
+                            Text("\(run.model.name) · \(source.source.name)：\(source.error ?? "转写未完成")").font(.system(size: 11)).foregroundStyle(.orange).textSelection(.enabled)
+                            Spacer()
+                            Button("重试\(source.source.name)") { transcription.retry(task, model: run.model, source: source.source) }.font(.system(size: 11)).disabled(!task.finished || transcription.busy)
+                        }
                     }
                 }
                 if let result {
-                    if result.segments.isEmpty { Text("未识别到语音").foregroundStyle(.secondary).font(.system(size: 12)) }
+                    if result.partial { Text("部分结果，转写尚未完整完成").foregroundStyle(.orange).font(.system(size: 11)) }
+                    if result.segments.isEmpty { Text(result.partial ? "暂无已识别文本" : "未识别到语音").foregroundStyle(.secondary).font(.system(size: 12)) }
                     ForEach(result.segments) { segment in
                         VStack(alignment: .leading, spacing: 11) {
                             Button {
@@ -63,6 +67,7 @@ struct TranscriptSection: View {
                                 HStack(alignment: .top, spacing: 13) {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(recordingTime(segment.start)).monospacedDigit()
+                                        if task.recognitionMode == .separate { Text(segment.source.name).font(.system(size: 9)) }
                                         if segment.precision == "chunk" { Text("音频块").font(.system(size: 8)) }
                                     }.font(.system(size: 10)).foregroundStyle(.secondary).frame(width: 46, alignment: .leading)
                                     Text(segment.text).font(.system(size: 13)).lineSpacing(5).frame(maxWidth: .infinity, alignment: .leading)
@@ -120,6 +125,10 @@ struct TranscriptionSettingsView: View {
                 Divider()
                 VStack(alignment: .leading, spacing: 12) {
                     Text("默认模型").font(.system(size: 13, weight: .semibold))
+                    Picker("音源转写", selection: $draft.recognitionMode) {
+                        Text("分开转写").tag(RecognitionMode.separate)
+                        Text("合并转写").tag(RecognitionMode.merged)
+                    }.font(.system(size: 12))
                     HStack(spacing: 20) {
                         ForEach(TranscriptModel.allCases) { family in
                             Toggle(family.name, isOn: Binding(get: { draft.models.contains(family) }, set: { value in

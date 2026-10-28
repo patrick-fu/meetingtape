@@ -7,6 +7,7 @@ import json
 import math
 import os
 from pathlib import Path
+import resource
 import stat
 import sys
 import tempfile
@@ -156,6 +157,15 @@ def write_json(path: Path, value: dict) -> None:
             os.unlink(temporary)
 
 
+def process_statistics() -> dict:
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    return {
+        "scope": "runner-process",
+        "cpuSeconds": usage.ru_utime + usage.ru_stime,
+        "peakResidentBytes": int(usage.ru_maxrss) * (1 if sys.platform == "darwin" else 1024),
+    }
+
+
 def main() -> int:
     _owner_lease = retain_owner_lease()
     parser = argparse.ArgumentParser(description="离线执行单个本地转写模型；输入由 MeetingTape 转换为单声道 16 kHz PCM WAV。")
@@ -172,8 +182,14 @@ def main() -> int:
         os.environ[key] = "1"
     os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
     os.environ["DO_NOT_TRACK"] = "1"
-    samples, duration = read_pcm(args.audio)
-    write_json(args.output, transcribe(args.model_type, args.model.resolve(), samples, duration))
+    try:
+        samples, duration = read_pcm(args.audio)
+        result = transcribe(args.model_type, args.model.resolve(), samples, duration)
+    except Exception as error:
+        write_json(args.output, {"statistics": process_statistics(), "error": str(error)})
+        raise
+    result["statistics"] = process_statistics()
+    write_json(args.output, result)
     return 0
 
 

@@ -44,7 +44,7 @@ final class TranscriptionModel: ObservableObject {
             values = await Task.detached {
                 var result: [String: [TranscriptModel: TranscriptResult]] = [:]
                 guard let store = try? TranscriptionStore() else { return result }
-                for task in snapshots { for run in task.runs where run.state == .succeeded {
+                for task in snapshots { for run in task.runs {
                     if let transcript = try? store.result(task.id, model: run.model) { result[task.id, default: [:]][run.model] = transcript }
                 } }
                 return result
@@ -61,7 +61,7 @@ final class TranscriptionModel: ObservableObject {
         if models.contains(.doubao) { arguments.append("--allow-cloud") }
         perform(arguments)
     }
-    func retry(_ task: TranscriptionTask, model: TranscriptModel) { perform(["transcribe", "retry", task.id, model.rawValue]) }
+    func retry(_ task: TranscriptionTask, model: TranscriptModel, source: TranscriptSource) { perform(["transcribe", "retry", task.id, model.rawValue, "--source", source.rawValue]) }
     func install(_ model: TranscriptModel, profile: String, reuse: Bool) {
         perform(["transcribe", "install", model.rawValue, "--profile", profile] + (reuse ? ["--reuse"] : []) + (reuse ? existingRoot.map { ["--reuse-root", $0.path] } ?? [] : []))
     }

@@ -9,17 +9,20 @@ enum TranscriptionCommand {
     meetingtape transcribe settings [--save-stdin]
     meetingtape transcribe install <qwen|moss> [--profile low-memory|standard] [--reuse] [--reuse-root <runtime-directory>]
     meetingtape transcribe credentials <status|save-stdin|remove|test>
-    meetingtape transcribe start <saved-audio> [--models qwen,moss,doubao] [--allow-cloud]
+    meetingtape transcribe start <saved-audio> [--models qwen,moss,doubao] [--mode separate|merged] [--allow-cloud]
     meetingtape transcribe list
     meetingtape transcribe status <task-id>
     meetingtape transcribe result <task-id> <qwen|moss|doubao> [--text]
-    meetingtape transcribe retry <task-id> <qwen|moss|doubao>
+    meetingtape transcribe retry <task-id> <qwen|moss|doubao> [--source system|microphone|merged]
+    meetingtape transcribe export <session-id|task-id> --primary live|<task-id>:<model> [--include-versions] [--title <title>] [--output <file.md>]
 
     Commands return schema-based JSON. Settings and credentials are read from stdin
     when explicitly requested. Credentials use macOS Keychain; values are never returned.
     Cloud transcription uploads a mono copy to Doubao; --allow-cloud is required.
     Local model installation downloads pinned packages and model weights on demand.
-    Completed transcripts persist independently for each selected model.
+    Completed transcripts persist independently for each selected model and source.
+    Native recordings default to separate system/microphone recognition. Unknown
+    external audio remains merged; separate mode requires native channel metadata.
 
     """
 
@@ -68,18 +71,51 @@ enum TranscriptionCommand {
                     models = values
                 }
                 let chosen = try models ?? store.settings().models
+                var mode: RecognitionMode?
+                if let index = rest.firstIndex(of: "--mode") {
+                    guard index + 1 < rest.count, let value = RecognitionMode(rawValue: rest[index + 1]) else { throw TranscriptionFailure("Use --mode separate|merged.") }
+                    mode = value
+                }
                 if chosen.contains(.doubao), !rest.contains("--allow-cloud") { throw TranscriptionFailure("Doubao uploads audio; pass --allow-cloud to proceed.") }
-                return try json(TaskResponse(task: TranscriptionManager.enqueue(input: path, models: chosen)))
+                return try json(TaskResponse(task: TranscriptionManager.enqueue(input: path, models: chosen, mode: mode)))
             case "status":
                 guard rest.count == 1 else { throw TranscriptionFailure("Provide one task ID.") }
                 return try json(TaskResponse(task: TranscriptionManager.status(rest[0])))
             case "retry":
-                guard rest.count == 2, let model = TranscriptModel(rawValue: rest[1]) else { throw TranscriptionFailure("Provide task ID and model.") }
-                return try json(TaskResponse(task: TranscriptionManager.retry(rest[0], model: model)))
+                guard rest.count >= 2, let model = TranscriptModel(rawValue: rest[1]) else { throw TranscriptionFailure("Provide task ID and model.") }
+                var source: TranscriptSource?
+                if rest.count != 2 {
+                    guard rest.count == 4, rest[2] == "--source", let value = TranscriptSource(rawValue: rest[3]) else { throw TranscriptionFailure("Use retry <task-id> <model> [--source system|microphone|merged].") }
+                    source = value
+                }
+                return try json(TaskResponse(task: TranscriptionManager.retry(rest[0], model: model, source: source)))
             case "result":
                 guard rest.count >= 2, let model = TranscriptModel(rawValue: rest[1]) else { throw TranscriptionFailure("Provide task ID and model.") }
                 let result = try store.result(rest[0], model: model)
                 return rest.contains("--text") ? RunResult(exitCode: .ok, stdout: result.text + "\n") : try json(result)
+            case "export":
+                guard let id = rest.first, !id.hasPrefix("--") else { throw TranscriptionFailure("Provide a recording or task ID.") }
+                var primary: String?, destination: String?, title = "录音转写", includeVersions = false
+                var index = 1
+                while index < rest.count {
+                    let option = rest[index]
+                    if option == "--include-versions" { includeVersions = true; index += 1; continue }
+                    guard ["--primary", "--title", "--output"].contains(option), index + 1 < rest.count else { throw TranscriptionFailure("Unknown or incomplete export option: \(option)") }
+                    switch option {
+                    case "--primary": primary = rest[index + 1]
+                    case "--title": title = rest[index + 1]
+                    default: destination = rest[index + 1]
+                    }
+                    index += 2
+                }
+                let snapshot = try TranscriptExportSnapshot.load(id, title: title, store: store)
+                guard let primary else { throw TranscriptionFailure("Choose --primary from: " + snapshot.versions.map(\.id).joined(separator: ", ")) }
+                let markdown = try snapshot.markdown(primary: primary, includeVersions: includeVersions)
+                if let destination {
+                    try Data(markdown.utf8).write(to: URL(fileURLWithPath: destination), options: .atomic)
+                    return try json(["exported": true])
+                }
+                return RunResult(exitCode: .ok, stdout: markdown)
             default: throw TranscriptionFailure("Unknown transcription command. Run meetingtape help transcribe.")
             }
         } catch { return RunResult(exitCode: .capture, stderr: error.localizedDescription + "\n") }
