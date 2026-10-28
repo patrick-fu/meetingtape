@@ -23,9 +23,14 @@ func liveCloudSyntheticRecordingStreamsRevisionsFinishesAndPersists() async thro
     try FileManager.default.createDirectory(at: recovery, withIntermediateDirectories: true)
     var snapshot = SessionSnapshot(recoveryPath: recovery.path)
     snapshot.state = .recording
+    if environment["MEETINGTAPE_LIVE_SMOKE_SEPARATE"] == "1" { snapshot.recognitionMode = .separate }
     let writer = try RecoveryStore(directory: recovery, keepRaw: false, snapshot: snapshot)
     let store = LiveCaptionStore(directory: root.appendingPathComponent("library/LiveCaptions"))
-    let service = LiveCaptionSession(snapshot: snapshot, store: store, credential: credential)
+    var options = SubtitleOptions()
+    options.translation = environment["MEETINGTAPE_LIVE_SMOKE_TRANSLATE"] == "1"
+    options.transcription = environment["MEETINGTAPE_LIVE_SMOKE_TRANSLATION_ONLY"] != "1"
+    options.targetLanguage = "en"
+    let service = LiveCaptionSession(snapshot: snapshot, store: store, credential: credential, options: options)
     let log = LiveUpdateLog()
     let work = Task { await service.run { await log.receive($0) } }
     do {
@@ -54,8 +59,15 @@ func liveCloudSyntheticRecordingStreamsRevisionsFinishesAndPersists() async thro
         #expect(await log.partials > 0)
         #expect(result.complete, Comment(rawValue: result.message ?? "未完成定稿"))
         let text = result.segments.map(\.text).joined()
-        #expect(text.contains("模型"))
-        #expect(text.contains("时间"))
+        if options.transcription {
+            #expect(text.contains("模型"))
+            #expect(text.contains("时间"))
+        } else { #expect(text.isEmpty) }
+        if snapshot.recognitionMode == .separate { #expect(Set(result.segments.map(\.source)) == [.system, .microphone]) }
+        if options.translation {
+            #expect(result.segments.allSatisfy { $0.translation?.state == .translated || $0.translation?.state == .sameLanguage })
+            #expect(result.segments.contains { $0.targetText?.isEmpty == false })
+        }
         let reopened = try await store.load(snapshot.sessionID)
         #expect(reopened?.segments == result.segments)
         #expect(reopened?.complete == true)

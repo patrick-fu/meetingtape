@@ -1,4 +1,5 @@
 import Foundation
+import MeetingTapeCore
 
 public enum TranscriptSource: String, Codable, CaseIterable, Sendable, Identifiable {
     case system, microphone, merged
@@ -27,10 +28,8 @@ public enum TranscriptSource: String, Codable, CaseIterable, Sendable, Identifia
     }
 }
 
-public enum RecognitionMode: String, Codable, CaseIterable, Sendable, Identifiable {
-    case separate, merged
+public typealias RecognitionMode = MeetingTapeCore.RecognitionMode
 
-    public var id: String { rawValue }
-    public var name: String { self == .separate ? "分开识别" : "合并识别" }
+extension RecognitionMode {
     public var sources: [TranscriptSource] { self == .separate ? [.system, .microphone] : [.merged] }
 }

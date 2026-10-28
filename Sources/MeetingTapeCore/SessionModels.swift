@@ -1,5 +1,11 @@
 import Foundation
 
+public enum RecognitionMode: String, Codable, CaseIterable, Sendable, Identifiable {
+    case separate, merged
+    public var id: String { rawValue }
+    public var name: String { self == .separate ? "分开识别" : "合并识别" }
+}
+
 public enum AudioSource: String, Codable, Sendable {
     case system
     case microphone
@@ -48,6 +54,7 @@ public struct SessionSnapshot: Codable, Sendable {
     public var degradedIntervals: [RecordingInterval] = []
     public var failureReason: String?
     public var recoveryNote: String?
+    public var recognitionMode: RecognitionMode?
 
     public init(sessionID: String = UUID().uuidString.lowercased(), processID: Int32 = ProcessInfo.processInfo.processIdentifier,
                 startedAt: String = ISO8601DateFormatter().string(from: Date()), recoveryPath: String) {

@@ -119,8 +119,19 @@ struct TranscriptionSettingsView: View {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("实时字幕").font(.system(size: 13, weight: .semibold))
-                    Toggle("录音时开启豆包实时字幕", isOn: Binding(get: { captions.enabled }, set: { captions.setEnabled($0) })).font(.system(size: 12))
-                    if captions.enabled { Text("录音时实时上传系统音频和麦克风，使用你的豆包账户计费。") .font(.system(size: 11)).foregroundStyle(.orange) }
+                    Toggle("实时转写", isOn: Binding(get: { captions.enabled }, set: { captions.setEnabled($0) })).font(.system(size: 12))
+                    Toggle("字幕翻译", isOn: Binding(get: { captions.translationEnabled }, set: { captions.setTranslationEnabled($0) })).font(.system(size: 12))
+                    Picker("目标语言", selection: Binding(get: { captions.targetLanguage }, set: { captions.setTargetLanguage($0) })) {
+                        ForEach(SubtitleLanguage.identifiers, id: \.self) { Text(SubtitleLanguage.name($0)).tag($0) }
+                    }.font(.system(size: 12))
+                    Picker("翻译模型", selection: Binding(get: { captions.provider }, set: { captions.setProvider($0) })) {
+                        ForEach(SubtitleTranslationProvider.allCases) { Text($0.name).tag($0) }
+                    }.font(.system(size: 12))
+                    if captions.provider == .local {
+                        if #available(macOS 26, *) { LocalTranslationSetup(target: captions.targetLanguage).id(captions.targetLanguage) }
+                        else { Text("本地实时翻译需要 macOS 26。").font(.system(size: 11)).foregroundStyle(.secondary) }
+                    } else { Text("文字会发送至豆包，需开通 volc.speech.mt。使用下方自备凭据。").font(.system(size: 11)).foregroundStyle(.orange) }
+                    if captions.anyEnabled { Text("实时语音识别会上传声音至豆包，使用你的账户计费。").font(.system(size: 11)).foregroundStyle(.orange) }
                 }
                 Divider()
                 VStack(alignment: .leading, spacing: 12) {

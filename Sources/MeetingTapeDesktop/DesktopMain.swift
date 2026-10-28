@@ -47,6 +47,7 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
         statusMenu.addItem(withTitle: "退出 MeetingTape", action: #selector(quit), keyEquivalent: "").target = self
         statusItem.menu = statusMenu
         model.onChange = { [weak self] in self?.updateWindows() }
+        model.liveCaptions.onResize = { [weak self] in self?.updateWindows() }
         model.onOpenLibrary = { [weak self] in self?.showLibrary() }
         model.onShowRecordingPanel = { [weak self] in self?.showRecordingPanel() }
         configureMenu()
@@ -70,7 +71,7 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateWindows() {
-        recordingPanel.resize(expanded: model.panelExpanded)
+        recordingPanel.resize(expanded: model.panelExpanded, compactHeight: model.liveCaptions.compactHeight)
         recordingPanel.setPinned(model.panelPinned)
         if model.panelVisible {
             if !recordingPanel.isVisible { recordingPanel.orderFrontRegardless() }
