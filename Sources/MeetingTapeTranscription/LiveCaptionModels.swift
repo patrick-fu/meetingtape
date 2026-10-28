@@ -29,7 +29,9 @@ public actor LiveCaptionStore {
         self.directory = directory ?? library.appendingPathComponent("LiveCaptions")
     }
 
-    public func load(_ sessionID: String) throws -> LiveCaptionArchive? {
+    public func load(_ sessionID: String) throws -> LiveCaptionArchive? { try readSnapshot(sessionID) }
+
+    public nonisolated func readSnapshot(_ sessionID: String) throws -> LiveCaptionArchive? {
         let path = try file(sessionID)
         guard FileManager.default.fileExists(atPath: path.path) else { return nil }
         let size = try path.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
@@ -49,7 +51,7 @@ public actor LiveCaptionStore {
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path.path)
     }
 
-    private func file(_ sessionID: String) throws -> URL {
+    private nonisolated func file(_ sessionID: String) throws -> URL {
         guard let id = UUID(uuidString: sessionID) else { throw TranscriptionFailure("实时字幕的录音标识无效。") }
         return directory.appendingPathComponent(id.uuidString.lowercased() + ".json")
     }

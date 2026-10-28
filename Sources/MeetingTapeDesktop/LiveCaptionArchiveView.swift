@@ -13,6 +13,7 @@ struct LiveCaptionArchiveView: View {
                 Text("实时字幕").font(.system(size: 13, weight: .semibold))
                 if !archive.complete { Text("部分字幕").font(.system(size: 10)).foregroundStyle(.orange) }
                 Spacer()
+                TranscriptExportButton(item: item, primary: "live")
                 Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(archive.segments.map(\.text).joined(separator: "\n"), forType: .string)
