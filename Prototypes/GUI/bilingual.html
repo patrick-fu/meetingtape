@@ -1,0 +1,2067 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeetingTape 紧凑双语录音悬浮窗原型 (A / B / C 方案对比)</title>
+  <style>
+    :root {
+      --bg-desktop: #1c1d21;
+      --bg-paper: #ffffff;
+      --bg-glass-dark: rgba(28, 28, 30, 0.88);
+      --bg-glass-card: rgba(44, 44, 46, 0.72);
+      --bg-hud: rgba(22, 23, 26, 0.94);
+      --border-glass: rgba(255, 255, 255, 0.12);
+      --border-hud: rgba(255, 255, 255, 0.14);
+      --shadow-window: 0 16px 36px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.35);
+      --shadow-hud: 0 12px 28px rgba(0, 0, 0, 0.5);
+      --accent-sys: #388bfd;
+      --accent-sys-bg: rgba(56, 139, 253, 0.18);
+      --accent-mic: #3fb950;
+      --accent-mic-bg: rgba(63, 185, 80, 0.18);
+      --accent-mix: #d29922;
+      --accent-mix-bg: rgba(210, 153, 34, 0.18);
+      --accent-mac-red: #ff453a;
+      --accent-mac-amber: #ff9f0a;
+      --accent-mac-green: #30d158;
+      --accent-blue: #0a84ff;
+      --text-pri: #f5f5f7;
+      --text-sec: #98989d;
+      --text-muted: #636366;
+      --font-stack: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --font-mono: "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-stack);
+      background-color: var(--bg-desktop);
+      color: #333333;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ==========================================================================
+       1. 模拟桌面背景与笔记资料库界面 (Mac Document Workspace)
+       ========================================================================== */
+    .desktop-workspace {
+      flex: 1;
+      position: relative;
+      display: flex;
+      background: radial-gradient(circle at 10% 20%, #2a2c35 0%, #17181c 90%);
+      overflow: hidden;
+      padding: 16px;
+    }
+
+    .doc-app-window {
+      flex: 1;
+      background: #ffffff;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+      opacity: 0.94;
+    }
+
+    .doc-titlebar {
+      height: 38px;
+      background: #f6f6f6;
+      border-bottom: 1px solid #e1e1e1;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 8px;
+    }
+
+    .mac-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .mac-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+    }
+    .mac-dot.red { background: #ff5f56; border: 1px solid #e0443e; }
+    .mac-dot.yellow { background: #ffbd2e; border: 1px solid #dea123; }
+    .mac-dot.green { background: #27c93f; border: 1px solid #1aab29; }
+
+    .doc-title {
+      flex: 1;
+      text-align: center;
+      font-size: 13px;
+      color: #555555;
+      font-weight: 500;
+      margin-right: 50px;
+    }
+
+    .doc-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .doc-sidebar {
+      width: 220px;
+      background: #f9f9fb;
+      border-right: 1px solid #e8e8ea;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .doc-sidebar-item {
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      color: #555;
+      cursor: default;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .doc-sidebar-item.active {
+      background: #e8ecf4;
+      color: #1a56db;
+      font-weight: 600;
+    }
+
+    .doc-main-content {
+      flex: 1;
+      padding: 28px 36px;
+      background: #ffffff;
+      color: #2c3e50;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+
+    .doc-main-content h1 {
+      font-size: 21px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 8px;
+    }
+    .doc-meta {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 16px;
+    }
+    .doc-main-content h2 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #222;
+      margin: 18px 0 8px 0;
+    }
+    .doc-main-content p {
+      font-size: 13px;
+      color: #444;
+      margin-bottom: 12px;
+    }
+    .doc-main-content ul {
+      padding-left: 18px;
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 14px;
+    }
+    .doc-main-content li {
+      margin-bottom: 4px;
+    }
+    .doc-badge-pill {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      background: #eef2ff;
+      color: #3b82f6;
+      margin-right: 6px;
+    }
+
+    /* ==========================================================================
+       2. 核心悬浮小窗 (MeetingTape Floating Recorder Widget)
+       严格 196px 逻辑宽度，放置于页面右上角
+       ========================================================================== */
+    .recorder-anchor {
+      position: absolute;
+      top: 32px;
+      right: 36px;
+      z-index: 1000;
+      filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.42));
+      transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* 悬浮小窗主体 */
+    .tape-widget {
+      width: 196px; /* 严格保证 196 CSS 像素 */
+      border-radius: 10px;
+      background: var(--bg-glass-dark);
+      backdrop-filter: blur(24px) saturate(190%);
+      -webkit-backdrop-filter: blur(24px) saturate(190%);
+      border: 0.5px solid var(--border-glass);
+      color: var(--text-pri);
+      box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4), inset 0 0.5px 0.5px rgba(255, 255, 255, 0.15);
+      position: relative;
+      overflow: hidden;
+      transition: width 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  height 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-radius 0.2s ease;
+    }
+
+    /* 展开态：380 × 320 px */
+    .tape-widget.is-expanded {
+      width: 380px !important;
+      height: 320px !important;
+      border-radius: 12px;
+    }
+
+    /* 通用微型图标按钮 */
+    .btn-icon {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-sec);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      transition: all 0.15s ease;
+      padding: 0;
+    }
+    .btn-icon:hover {
+      color: var(--text-pri);
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .btn-icon.active {
+      color: var(--accent-blue);
+      background: rgba(10, 132, 255, 0.18);
+    }
+    .btn-icon.btn-stop:hover {
+      color: var(--accent-mac-red);
+      background: rgba(255, 69, 58, 0.2);
+    }
+
+    /* 声道来源小徽章 */
+    .source-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 4px;
+      border-radius: 3px;
+      letter-spacing: 0.2px;
+      line-height: 1.2;
+    }
+    .source-badge.sys {
+      background: var(--accent-sys-bg);
+      color: var(--accent-sys);
+      border: 0.5px solid rgba(56, 139, 253, 0.35);
+    }
+    .source-badge.mic {
+      background: var(--accent-mic-bg);
+      color: var(--accent-mic);
+      border: 0.5px solid rgba(63, 185, 80, 0.35);
+    }
+    .source-badge.mix {
+      background: var(--accent-mix-bg);
+      color: var(--accent-mix);
+      border: 0.5px solid rgba(210, 153, 34, 0.35);
+    }
+
+    /* 录音指示红点脉冲动画 */
+    .rec-pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-mac-red);
+      box-shadow: 0 0 6px rgba(255, 69, 58, 0.8);
+      animation: recPulse 1.4s infinite ease-in-out;
+      flex-shrink: 0;
+    }
+    @keyframes recPulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(0.75); opacity: 0.45; }
+    }
+
+    /* 动态微型双声道波形条 (CSS 动画) */
+    .mini-meters {
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 1.5px;
+      height: 10px;
+      width: 14px;
+    }
+    .meter-bar {
+      flex: 1;
+      background: var(--text-sec);
+      border-radius: 1px;
+      transition: height 0.1s ease;
+      height: 4px;
+    }
+    .meter-bar.l-ch { background: var(--accent-sys); }
+    .meter-bar.r-ch { background: var(--accent-mic); }
+    .meter-bar.speaking {
+      animation: meterJump 0.35s infinite alternate ease-in-out;
+    }
+    @keyframes meterJump {
+      0% { height: 2px; }
+      50% { height: 9px; }
+      100% { height: 5px; }
+    }
+
+    /* 翻译等待闪烁动画 */
+    .waiting-shimmer {
+      display: inline-block;
+      color: var(--accent-mac-amber);
+      font-style: italic;
+      animation: shimmerFade 1.2s infinite ease-in-out;
+    }
+    @keyframes shimmerFade {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    /* ==========================================================================
+       3. 方案 A：经典分层卡片流 (Classic Tiered Card)
+       信息层级：顶部独立操作控制栏 + 下方字幕内容卡片
+       ========================================================================== */
+    .variant-a {
+      display: flex;
+      flex-direction: column;
+      padding: 6px 8px 7px 8px;
+    }
+
+    .va-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 20px;
+      padding-bottom: 4px;
+      border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 5px;
+    }
+
+    .va-header-left {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .va-timer {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--text-pri);
+      letter-spacing: -0.3px;
+    }
+
+    .va-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .va-content {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .va-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1px;
+    }
+
+    .va-target-tag {
+      font-size: 9.5px;
+      color: var(--text-sec);
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    /* 原文与译文字体约 10-12px，不缩成难读文字 */
+    .va-text-original {
+      font-size: 11px;
+      line-height: 14.5px;
+      color: #a1a1a6;
+      word-break: break-all;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .va-text-original .label-prefix {
+      color: #6e6e73;
+      font-size: 9.5px;
+      margin-right: 2px;
+      font-weight: 500;
+    }
+
+    .va-text-translated {
+      font-size: 11.5px;
+      font-weight: 500;
+      line-height: 15px;
+      color: #f5f5f7;
+      word-break: break-all;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .va-text-translated .label-prefix {
+      color: var(--accent-blue);
+      font-size: 9.5px;
+      margin-right: 2px;
+      font-weight: 600;
+    }
+
+    /* ==========================================================================
+       4. 方案 B：极致胶囊微件 (Ultra-Compact Pill with Integrated Header)
+       信息层级：音源/计时集成胶囊头部，行内紧凑标签，最大化字幕纵向空间
+       ========================================================================== */
+    .variant-b {
+      display: flex;
+      flex-direction: column;
+      padding: 5px 7px 6px 7px;
+    }
+
+    .vb-header-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    /* 紧凑胶囊组件 */
+    .vb-pill-combo {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1.5px 5px;
+      border-radius: 10px;
+      border: 0.5px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .vb-pill-combo .vb-timer {
+      font-size: 10.5px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: #ffffff;
+      letter-spacing: -0.2px;
+    }
+
+    .vb-actions-strip {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .vb-body {
+      background: rgba(0, 0, 0, 0.22);
+      border-radius: 6px;
+      padding: 4px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 2.5px;
+      border: 0.5px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .vb-line {
+      font-size: 11px;
+      line-height: 14.5px;
+      word-break: break-all;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .vb-line.orig {
+      color: #b0b0b5;
+    }
+    .vb-line.trans {
+      color: #ffffff;
+      font-weight: 500;
+    }
+
+    .vb-tag-inline {
+      display: inline-block;
+      font-size: 9px;
+      padding: 0 3px;
+      border-radius: 2px;
+      font-weight: 600;
+      margin-right: 3px;
+      vertical-align: 0.5px;
+    }
+    .vb-tag-inline.sys { background: var(--accent-sys-bg); color: var(--accent-sys); }
+    .vb-tag-inline.mic { background: var(--accent-mic-bg); color: var(--accent-mic); }
+    .vb-tag-inline.trans { background: rgba(10, 132, 255, 0.22); color: #58a6ff; }
+
+    /* ==========================================================================
+       5. 方案 C：侧轨双声道指示器 + 焦点气泡 (Side-Track Meter & Focus Bubble)
+       信息层级：左侧硬件式双轨柱状电平指示，右侧对话式焦点气泡，声学状态与语义分离
+       ========================================================================== */
+    .variant-c {
+      display: flex;
+      padding: 6px;
+      gap: 6px;
+    }
+
+    /* 左侧轨 (Side Rail) */
+    .vc-side-rail {
+      width: 22px;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 6px;
+      border: 0.5px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 2px;
+    }
+
+    .vc-vu-group {
+      display: flex;
+      gap: 2.5px;
+      height: 28px;
+      align-items: flex-end;
+    }
+
+    .vc-vu-col {
+      width: 4px;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 2px;
+      display: flex;
+      flex-direction: column-reverse;
+      overflow: hidden;
+      padding: 0.5px;
+    }
+
+    .vc-vu-fill {
+      width: 100%;
+      border-radius: 1px;
+      transition: height 0.12s ease;
+      height: 35%;
+    }
+    .vc-vu-fill.sys { background: linear-gradient(to top, #388bfd, #58a6ff); }
+    .vc-vu-fill.mic { background: linear-gradient(to top, #3fb950, #7ee787); }
+
+    .vc-rail-label {
+      font-size: 8px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      line-height: 1;
+      transform: scale(0.85);
+    }
+
+    /* 右侧主区域 */
+    .vc-main-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .vc-top-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 3px;
+    }
+
+    .vc-timer-tag {
+      font-size: 10.5px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: #dedede;
+    }
+
+    .vc-controls {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .vc-bubble {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      padding: 4px 6px;
+      border: 0.5px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .vc-bubble-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .vc-dual-alert {
+      font-size: 9px;
+      color: var(--accent-mac-amber);
+      background: rgba(255, 159, 10, 0.14);
+      padding: 0 3px;
+      border-radius: 2px;
+      display: none;
+    }
+
+    .vc-bubble-text-orig {
+      font-size: 10.5px;
+      line-height: 13.5px;
+      color: #98989d;
+      word-break: break-all;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .vc-bubble-text-trans {
+      font-size: 11.5px;
+      font-weight: 500;
+      line-height: 15px;
+      color: #ffffff;
+      word-break: break-all;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* ==========================================================================
+       6. 展开态大窗 (Expanded Timeline Window: 380 × 320 px)
+       系统音频/麦克风完整双轨时间线，两路同时讲话可区分，历史可滚动
+       ========================================================================== */
+    .expanded-container {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      background: var(--bg-glass-dark);
+      color: var(--text-pri);
+    }
+
+    .tape-widget.is-expanded .compact-view {
+      display: none !important;
+    }
+    .tape-widget.is-expanded .expanded-container {
+      display: flex !important;
+    }
+
+    .exp-titlebar {
+      height: 34px;
+      border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .exp-title-left {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .exp-title-text {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-pri);
+    }
+
+    .exp-filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      background: rgba(0, 0, 0, 0.2);
+      border-bottom: 0.5px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .exp-filter-pill {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--text-sec);
+      border: 0.5px solid rgba(255, 255, 255, 0.1);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .exp-filter-pill.active {
+      background: rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+      font-weight: 500;
+    }
+
+    .exp-timeline-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .exp-timeline-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+    .exp-timeline-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+
+    .exp-msg-item {
+      display: flex;
+      flex-direction: column;
+      background: rgba(255, 255, 255, 0.04);
+      border: 0.5px solid rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      padding: 6px 8px;
+      gap: 3px;
+    }
+    .exp-msg-item.sys-item {
+      border-left: 2.5px solid var(--accent-sys);
+    }
+    .exp-msg-item.mic-item {
+      border-left: 2.5px solid var(--accent-mic);
+    }
+
+    .exp-msg-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-sec);
+    }
+
+    .exp-msg-orig {
+      font-size: 11.5px;
+      line-height: 15px;
+      color: #d1d1d6;
+    }
+
+    .exp-msg-trans {
+      font-size: 11.5px;
+      line-height: 15px;
+      color: #ffffff;
+      font-weight: 500;
+    }
+
+    .exp-bottom-bar {
+      height: 32px;
+      border-top: 0.5px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      background: rgba(0, 0, 0, 0.25);
+    }
+
+    .exp-status-hint {
+      font-size: 10px;
+      color: var(--text-sec);
+    }
+
+    /* ==========================================================================
+       7. 独立演示控制区与诊断面板 (Demo Evaluation Console & Diagnostics HUD)
+       置于页面底部，完全不遮挡右上角悬浮小窗，带状态监控与场景切换
+       ========================================================================== */
+    .demo-console {
+      height: 220px;
+      background: var(--bg-hud);
+      border-top: 1px solid var(--border-hud);
+      display: flex;
+      flex-direction: column;
+      padding: 10px 18px;
+      box-shadow: var(--shadow-hud);
+      z-index: 2000;
+      color: #ffffff;
+      user-select: none;
+    }
+
+    .demo-header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .demo-heading {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .demo-notice-tag {
+      font-size: 10.5px;
+      padding: 2px 7px;
+      background: rgba(255, 159, 10, 0.15);
+      border: 0.5px solid rgba(255, 159, 10, 0.35);
+      color: #ffb340;
+      border-radius: 4px;
+    }
+
+    .demo-columns {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 280px 1fr 280px;
+      gap: 16px;
+      min-height: 0;
+    }
+
+    .demo-col {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .demo-section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-sec);
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    /* 方案切换分段器 */
+    .variant-selector {
+      display: flex;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 6px;
+      padding: 2px;
+      border: 0.5px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .variant-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-sec);
+      font-size: 11.5px;
+      font-weight: 500;
+      padding: 5px 0;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .variant-btn:hover {
+      color: #ffffff;
+    }
+    .variant-btn.active {
+      background: rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+      font-weight: 600;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    }
+
+    /* 开关卡片组 */
+    .switches-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .switch-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 0.5px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 6px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+    .switch-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .switch-card span {
+      font-size: 11.5px;
+      color: #e5e5ea;
+    }
+
+    /* 苹果风格复选框开关 */
+    .ios-toggle {
+      width: 32px;
+      height: 18px;
+      background: #3a3a3c;
+      border-radius: 10px;
+      position: relative;
+      transition: background 0.2s ease;
+      flex-shrink: 0;
+    }
+    .ios-toggle::after {
+      content: "";
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: #ffffff;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .ios-toggle.checked {
+      background: var(--accent-blue);
+    }
+    .ios-toggle.checked::after {
+      transform: translateX(14px);
+    }
+
+    /* 语境与场景切换按钮网格 */
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .scenario-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 0.5px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      padding: 6px 8px;
+      color: #d1d1d6;
+      font-size: 11px;
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      transition: all 0.15s ease;
+    }
+    .scenario-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+    }
+    .scenario-btn.active {
+      background: rgba(10, 132, 255, 0.22);
+      border-color: rgba(10, 132, 255, 0.5);
+      color: #ffffff;
+    }
+    .scenario-btn .sc-title {
+      font-weight: 600;
+    }
+    .scenario-btn .sc-desc {
+      font-size: 9.5px;
+      color: var(--text-sec);
+    }
+
+    /* 实时诊断 HUD 面板 */
+    .hud-panel {
+      background: rgba(0, 0, 0, 0.35);
+      border: 0.5px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+    }
+
+    .hud-row {
+      display: flex;
+      justify-content: space-between;
+      color: #8e8e93;
+    }
+    .hud-row span.val {
+      color: #30d158;
+      font-weight: 500;
+    }
+    .hud-row span.val.active-mode {
+      color: #58a6ff;
+    }
+    .hud-row span.val.warning {
+      color: var(--accent-mac-amber);
+    }
+
+    .hud-size-badge {
+      display: inline-block;
+      background: rgba(56, 139, 253, 0.2);
+      color: #58a6ff;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+
+    /* 播放控制条 */
+    .playback-bar {
+      display: flex;
+      gap: 6px;
+      margin-top: 2px;
+    }
+    .playback-btn {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.09);
+      border: 0.5px solid rgba(255, 255, 255, 0.12);
+      border-radius: 5px;
+      padding: 4px 0;
+      color: #ffffff;
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .playback-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    /* 录音停止遮罩或提示 */
+    .stopped-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(20, 20, 22, 0.94);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px;
+      text-align: center;
+      z-index: 50;
+    }
+    .stopped-overlay.show {
+      display: flex;
+    }
+    .stopped-overlay p {
+      font-size: 11px;
+      color: var(--text-sec);
+    }
+    .stopped-overlay .btn-restart {
+      background: var(--accent-blue);
+      border: none;
+      color: #fff;
+      font-size: 10.5px;
+      padding: 3px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    /* 静音录制提示（转写和翻译都关） */
+    .no-subtitle-notice {
+      padding: 4px 6px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 4px;
+      font-size: 10.5px;
+      color: var(--text-sec);
+      text-align: center;
+      margin-top: 2px;
+    }
+
+    .desktop-workspace{background:#ecece8;padding-top:70px}
+    .doc-sidebar{width:180px}
+    .doc-app-window{opacity:1;box-shadow:0 8px 30px #25304a10}
+    .doc-main-content{padding:30px 34px}
+    .doc-main-content h1{font-size:25px;letter-spacing:-.5px}
+    .recorder-anchor{top:96px;right:38px;filter:drop-shadow(0 8px 18px #20283620)}
+    .tape-widget{--bg-glass-dark:rgba(255,255,255,.98);--bg-glass-card:#f6f7f9;--border-glass:#2025301c;--text-pri:#272a31;--text-sec:#747b86;--text-muted:#8c929c;--accent-sys:#527aa9;--accent-mic:#488b78;--accent-sys-bg:#edf3fb;--accent-mic-bg:#edf6f2;background:rgba(255,255,255,.98);border-radius:12px;box-shadow:0 3px 12px #222b3a0c}
+    .tape-widget .va-text-translated,.tape-widget .vb-line.trans,.tape-widget .vc-bubble-text-trans,.tape-widget .exp-msg-trans{color:#252932}
+    .tape-widget .va-text-original,.tape-widget .vb-line.orig,.tape-widget .vc-bubble-text-orig,.tape-widget .exp-msg-orig{color:#6e7580}
+    .tape-widget .label-prefix,.tape-widget #va-target-tag{display:none}
+    .tape-widget .vc-side-rail,.tape-widget .exp-bottom-bar{background:#f5f6f8}
+    .tape-widget .btn-icon:hover{background:#e9edf3}
+    .tape-widget .stopped-overlay{background:#fffffff5;color:#272a31}
+    .demo-console{height:280px;flex-shrink:0;margin-bottom:90px}
+    .demo-columns{grid-template-columns:minmax(200px,1fr) minmax(230px,1.3fr) minmax(210px,1fr)}
+    .demo-header-bar .demo-heading{font-size:12px}
+    .demo-notice-tag{font-size:9px}
+    .playback-bar{flex-wrap:wrap}
+    @media(max-width:780px){.demo-console{height:320px;overflow:auto}.demo-columns{grid-template-columns:1fr 1fr}.demo-col:last-child{grid-column:1/-1}.recorder-anchor{right:24px}.doc-sidebar{width:130px}}
+
+  .tape-widget,.recorder-anchor{transition:none}.tape-widget .exp-filter-bar{background:#f7f8fa}.tape-widget .exp-filter-pill{color:#6e7580}.tape-widget .exp-filter-pill.active{background:#e4ebf4;color:#35557d}
+  </style>
+</head>
+<body>
+
+  <!-- ========================================================================
+       1. 模拟工作区底衬 (提供真实工作上下文，小窗浮于其上)
+       ======================================================================== -->
+  <div class="desktop-workspace">
+    <div class="doc-app-window">
+      <div class="doc-titlebar">
+        <div class="mac-dots">
+          <div class="mac-dot red"></div>
+          <div class="mac-dot yellow"></div>
+          <div class="mac-dot green"></div>
+        </div>
+        <div class="doc-title">团队笔记 · 项目周会</div>
+      </div>
+
+      <div class="doc-body">
+        <div class="doc-sidebar">
+          <div class="doc-sidebar-item active">📁 本周计划</div>
+          <div class="doc-sidebar-item">📌 产品进展</div>
+          <div class="doc-sidebar-item">🌐 客户反馈</div>
+          <div class="doc-sidebar-item">📑 会议纪要与待办</div>
+          <div class="doc-sidebar-item">📅 下次会议</div>
+        </div>
+
+        <div class="doc-main-content"><h1>产品周会</h1><div class="doc-meta"><span>2026年10月28日</span><span>会议笔记</span></div><h2>本周进展</h2><p>产品体验和用户反馈已整理完成。本次会议讨论下一阶段的安排，确认交付范围与时间。</p><h2>讨论事项</h2><ul><li>回顾最近一周的使用反馈。</li><li>确认下周的重点和参与人员。</li><li>为跨地区协作确定共同的会议时间。</li></ul><h2>后续安排</h2><p>会后整理纪要，补充每项工作的负责人和预计完成日期。</p></div></div></div>
+
+<!-- ======================================================================
+         2. 真实 196px 悬浮小窗 (包含 A / B / C 方案与展开大窗)
+         ====================================================================== -->
+    <div class="recorder-anchor" id="recorder-anchor">
+      <div class="tape-widget" id="tape-widget">
+
+        <!-- 停止录音状态遮罩 -->
+        <div class="stopped-overlay" id="stopped-overlay">
+          <div style="font-size:16px;">⏹</div>
+          <div style="font-weight:600; font-size:12px;">录音已完成</div>
+          <p id="stopped-duration-hint">演示已结束</p>
+          <button class="btn-restart" onclick="restartRecording()">重新开始演示</button>
+        </div>
+
+        <!-- 方案 A：经典分层卡片流 (Classic Tiered Card) -->
+        <div class="compact-view variant-a" id="view-variant-a">
+          <div class="va-header">
+            <div class="va-header-left">
+              <div class="rec-pulse-dot" id="va-rec-dot"></div>
+              <span class="va-timer" id="va-timer-text">04:12</span>
+              <div class="mini-meters">
+                <div class="meter-bar l-ch speaking" id="va-meter-l"></div>
+                <div class="meter-bar r-ch" id="va-meter-r"></div>
+              </div>
+            </div>
+            <div class="va-header-actions">
+              <button class="btn-icon" id="va-btn-pin" title="固定小窗" onclick="togglePin()">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
+              </button>
+              <button class="btn-icon" title="展开完整双轨时间线" onclick="toggleExpand()">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              </button>
+              <button class="btn-icon btn-stop" title="停止录音" onclick="stopRecording()">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="va-content" id="va-content-box">
+            <div class="va-meta-row">
+              <span class="source-badge sys" id="va-source-badge">💻 系统</span>
+              <span class="va-target-tag" id="va-target-tag">目标: 英语</span>
+            </div>
+            <div class="va-text-original" id="va-text-orig">
+              <span class="label-prefix">原:</span><span id="va-orig-body">各位能看清我共享的架构图吗？</span>
+            </div>
+            <div class="va-text-translated" id="va-text-trans">
+              <span class="label-prefix">译:</span><span id="va-trans-body">Can everyone see the architecture diagram I'm sharing?</span>
+            </div>
+            <div class="no-subtitle-notice" id="va-no-sub-notice" style="display:none;">仅音频录音中 · 字幕已关闭</div>
+          </div>
+        </div>
+
+        <!-- 方案 B：极致胶囊微件 (Ultra-Compact Pill) -->
+        <div class="compact-view variant-b" id="view-variant-b" style="display: none;">
+          <div class="vb-header-strip">
+            <div class="vb-pill-combo">
+              <div class="rec-pulse-dot"></div>
+              <span class="source-badge sys" id="vb-source-badge" style="padding: 0 3px; font-size: 9px;">SYS</span>
+              <span class="vb-timer" id="vb-timer-text">04:12</span>
+              <div class="mini-meters" style="height: 8px; width: 12px;">
+                <div class="meter-bar l-ch speaking" id="vb-meter-l"></div>
+                <div class="meter-bar r-ch" id="vb-meter-r"></div>
+              </div>
+            </div>
+            <div class="vb-actions-strip">
+              <button class="btn-icon" id="vb-btn-pin" title="固定小窗" onclick="togglePin()">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
+              </button>
+              <button class="btn-icon" title="展开时间线" onclick="toggleExpand()">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 3 21 3 21 9"/><line x1="21" y1="3" x2="14" y2="10"/></svg>
+              </button>
+              <button class="btn-icon btn-stop" title="停止录音" onclick="stopRecording()">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="vb-body" id="vb-content-box">
+            <div class="vb-line orig" id="vb-text-orig">
+              <span class="vb-tag-inline sys" id="vb-tag-orig-lang">中</span><span id="vb-orig-body">各位能看清我共享的架构图吗？</span>
+            </div>
+            <div class="vb-line trans" id="vb-text-trans">
+              <span class="vb-tag-inline trans">EN</span><span id="vb-trans-body">Can everyone see the architecture diagram I'm sharing?</span>
+            </div>
+            <div class="no-subtitle-notice" id="vb-no-sub-notice" style="display:none;">仅音频录制中 (无字幕)</div>
+          </div>
+        </div>
+
+        <!-- 方案 C：侧轨双声道指示器 + 焦点气泡 (Side-Track Meter & Focus Bubble) -->
+        <div class="compact-view variant-c" id="view-variant-c" style="display: none;">
+          <!-- 左侧双轨 VU 电平轨 -->
+          <div class="vc-side-rail">
+            <div class="rec-pulse-dot" style="width: 5px; height: 5px;"></div>
+            <div class="vc-vu-group">
+              <div class="vc-vu-col" title="系统音频电平(L)">
+                <div class="vc-vu-fill sys" id="vc-vu-l" style="height: 70%;"></div>
+              </div>
+              <div class="vc-vu-col" title="麦克风电平(R)">
+                <div class="vc-vu-fill mic" id="vc-vu-r" style="height: 25%;"></div>
+              </div>
+            </div>
+            <span class="vc-rail-label">2CH</span>
+          </div>
+
+          <!-- 右侧内容面板 -->
+          <div class="vc-main-panel">
+            <div class="vc-top-meta">
+              <span class="vc-timer-tag" id="vc-timer-text">04:12</span>
+              <div class="vc-controls">
+                <button class="btn-icon" id="vc-btn-pin" title="固定小窗" onclick="togglePin()">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
+                </button>
+                <button class="btn-icon" title="展开双轨时间线" onclick="toggleExpand()">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 3 21 3 21 9"/><line x1="21" y1="3" x2="14" y2="10"/></svg>
+                </button>
+                <button class="btn-icon btn-stop" title="停止录音" onclick="stopRecording()">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="vc-bubble" id="vc-content-box">
+              <div class="vc-bubble-header">
+                <span class="source-badge sys" id="vc-source-badge">💻 系统</span>
+                <span class="vc-dual-alert" id="vc-dual-alert">🎙️ 麦克风亦有输入</span>
+              </div>
+              <div class="vc-bubble-text-orig" id="vc-text-orig">
+                <span id="vc-orig-body">各位能看清我共享的架构图吗？</span>
+              </div>
+              <div class="vc-bubble-text-trans" id="vc-text-trans">
+                <span id="vc-trans-body">Can everyone see the architecture diagram I'm sharing?</span>
+              </div>
+              <div class="no-subtitle-notice" id="vc-no-sub-notice" style="display:none;">仅双轨录音中 (无字幕)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 展开态大窗 (380 × 320 px 完整双轨时间线) -->
+        <div class="expanded-container" id="expanded-view">
+          <div class="exp-titlebar">
+            <div class="exp-title-left">
+              <div class="rec-pulse-dot"></div>
+              <span class="exp-title-text">MeetingTape 录音双轨时间线</span>
+              <span class="source-badge sys" style="font-size: 9px;">L:系统</span>
+              <span class="source-badge mic" style="font-size: 9px;">R:麦克</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:4px;">
+              <button class="btn-icon" id="exp-btn-pin" title="固定窗口" onclick="togglePin()">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
+              </button>
+              <button class="btn-icon" title="收起为 196px 悬浮小窗" onclick="toggleExpand()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="exp-filter-bar">
+            <span style="font-size: 10px; color: var(--text-sec); margin-right: 4px;">筛选声轨:</span>
+            <button class="exp-filter-pill active" onclick="setExpandedFilter('all', this)">全部双轨</button>
+            <button class="exp-filter-pill" onclick="setExpandedFilter('sys', this)">仅系统音频 (L)</button>
+            <button class="exp-filter-pill" onclick="setExpandedFilter('mic', this)">仅麦克风 (R)</button>
+          </div>
+
+          <div class="exp-timeline-scroll" id="exp-history-list">
+            <!-- 历史记录动态渲染 -->
+          </div>
+
+          <div class="exp-bottom-bar">
+            <span class="exp-status-hint" id="exp-status-hint">双轨识别运行中 · 目标语言: 英语</span>
+            <button class="btn-icon btn-stop" style="width: auto; padding: 2px 8px; gap: 4px; font-size: 10.5px;" onclick="stopRecording()">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+              <span>停止录音</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       3. 独立演示控制区与诊断面板 (完全不遮挡右上角 196px 小窗)
+       ======================================================================== -->
+  <div class="demo-console">
+    <div class="demo-header-bar">
+      <div class="demo-heading">
+        <span>双语字幕 · 演示控制</span>
+        <span class="demo-notice-tag">模拟内容 · 未连接真实服务</span>
+      </div>
+      <div style="font-size: 11px; color: var(--text-sec);">
+        支持 <code>?variant=A|B|C</code> 或 iframe postMessage 通信
+      </div>
+    </div>
+
+    <div class="demo-columns">
+      <!-- 列 1: 方案对比与核心功能开关 -->
+      <div class="demo-col">
+        <div class="demo-section-title">1. 布局方案切换 (信息层级差异)</div>
+        <div class="variant-selector">
+          <button class="variant-btn active" id="btn-var-a" onclick="switchVariant('A')">方案 A · 分层卡片</button>
+          <button class="variant-btn" id="btn-var-b" onclick="switchVariant('B')">方案 B · 极致胶囊</button>
+          <button class="variant-btn" id="btn-var-c" onclick="switchVariant('C')">方案 C · 侧轨微件</button>
+        </div>
+
+        <div class="demo-section-title" style="margin-top: 4px;">2. 独立功能开关 (测试四象限矩阵)</div>
+        <div class="switches-grid">
+          <div class="switch-card" onclick="toggleTranscription()">
+            <span>实时转写 (原文)</span>
+            <div class="ios-toggle checked" id="toggle-transcription"></div>
+          </div>
+          <div class="switch-card" onclick="toggleTranslation()">
+            <span>实时翻译 (译文)</span>
+            <div class="ios-toggle checked" id="toggle-translation"></div>
+          </div>
+          <div class="switch-card" onclick="toggleAudioMerge()">
+            <span>两路合并识别</span>
+            <div class="ios-toggle" id="toggle-merge"></div>
+          </div>
+          <div class="switch-card" onclick="cycleTargetLanguage()">
+            <span>目标语言: <strong id="lbl-target-lang" style="color:var(--accent-blue);">英语</strong></span>
+            <span style="font-size: 10px; color: var(--text-sec);">切换 ➔</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 列 2: 双语语境与网络模拟场景 -->
+      <div class="demo-col">
+        <div class="demo-section-title">3. 演示语境与业务场景预设</div>
+        <div class="scenario-grid">
+          <button class="scenario-btn active" id="sc-btn-zh-en" onclick="selectScenario('zh-en')">
+            <span class="sc-title">🇨🇳 ➔ 🇺🇸 中译英</span>
+            <span class="sc-desc">中文发言实时出英文字幕</span>
+          </button>
+          <button class="scenario-btn" id="sc-btn-en-zh" onclick="selectScenario('en-zh')">
+            <span class="sc-title">🇺🇸 ➔ 🇨🇳 英译中</span>
+            <span class="sc-desc">英文参会系统音转中文</span>
+          </button>
+          <button class="scenario-btn" id="sc-btn-long" onclick="selectScenario('long')">
+            <span class="sc-title">📜 长句连续流</span>
+            <span class="sc-desc">测试 10-12px 折行与阅读流</span>
+          </button>
+          <button class="scenario-btn" id="sc-btn-dual" onclick="selectScenario('dual')">
+            <span class="sc-title">🎙️+💻 两路同时说</span>
+            <span class="sc-desc">小窗显最新源，大窗收录双轨</span>
+          </button>
+          <button class="scenario-btn" id="sc-btn-same-lang" onclick="selectScenario('same-lang')">
+            <span class="sc-title">🎯 目标语无需翻译</span>
+            <span class="sc-desc">原语言即目标语，不重复出字</span>
+          </button>
+          <button class="scenario-btn" id="sc-btn-waiting" onclick="selectScenario('waiting')">
+            <span class="sc-title">⏳ 翻译等待/时延</span>
+            <span class="sc-desc">原文先行，译文等待不伪造定稿</span>
+          </button>
+        </div>
+
+        <div class="playback-bar">
+          <button class="playback-btn" id="btn-play-pause" onclick="togglePlayPause()">
+            <span id="icon-play-pause">⏸ 暂停出字</span>
+          </button>
+          <button class="playback-btn" onclick="stepForward()">
+            <span>⏭ 单步出字</span>
+          </button>
+          <button class="playback-btn" onclick="restartRecording()">
+            <span>🔄 重置演示</span>
+          </button>
+          <button class="playback-btn" onclick="toggleExpand()">
+            <span id="btn-toggle-expand-lbl">⤢ 展开/收起大窗</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 列 3: 实时诊断与逻辑尺寸 HUD -->
+      <div class="demo-col">
+        <div class="demo-section-title">4. 真实逻辑尺寸与诊断状态 (HUD)</div>
+        <div class="hud-panel">
+          <div class="hud-row">
+            <span>当前窗口尺寸:</span>
+            <span class="val hud-size-badge" id="hud-dimensions">196 × 72 px</span>
+          </div>
+          <div class="hud-row">
+            <span>设计原则宽度约束:</span>
+            <span class="val">196 逻辑点</span>
+          </div>
+          <div class="hud-row">
+            <span>文字字号规格:</span>
+            <span class="val">原 11px / 译 11.5px</span>
+          </div>
+          <div class="hud-row">
+            <span>音频链路模式:</span>
+            <span class="val active-mode" id="hud-audio-mode">独立双轨分离识别</span>
+          </div>
+          <div class="hud-row">
+            <span>当前小窗聚焦音源:</span>
+            <span class="val" id="hud-active-source">💻 系统音频 (左声道)</span>
+          </div>
+          <div class="hud-row">
+            <span>字幕渲染模式:</span>
+            <span class="val active-mode" id="hud-subtitle-mode">双行 (原文+译文)</span>
+          </div>
+          <div class="hud-row">
+            <span>置顶锁定状态:</span>
+            <span class="val" id="hud-pin-status">未置顶</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       4. 逻辑脚本 (状态机、出字生成器、尺寸观察器与通信)
+       ======================================================================== -->
+  <script>
+    // ----------------------------------------------------------------------
+    // 语境脚本库 (Scenarios Data)
+    // ----------------------------------------------------------------------
+    const SCENARIOS = {
+  "zh-en": {
+    "name": "中译英",
+    "targetLang": "en",
+    "targetLangLabel": "英语",
+    "dialogues": [
+      {
+        "source": "sys",
+        "orig": "我们先看一下本周的进展。",
+        "trans": "Let's review this week's progress.",
+        "language": "zh"
+      },
+      {
+        "source": "mic",
+        "orig": "好的，先从客户反馈开始吧。",
+        "trans": "Sure, let's start with customer feedback.",
+        "language": "zh"
+      }
+    ]
+  },
+  "en-zh": {
+    "name": "英译中",
+    "targetLang": "zh",
+    "targetLangLabel": "中文",
+    "dialogues": [
+      {
+        "source": "sys",
+        "orig": "Can everyone see the latest schedule?",
+        "trans": "大家能看到最新的安排吗？",
+        "language": "en"
+      },
+      {
+        "source": "mic",
+        "orig": "Yes, we can move the review to Friday.",
+        "trans": "可以，我们可以把评审移到周五。",
+        "language": "en"
+      }
+    ]
+  },
+  "long": {
+    "name": "长句连续流",
+    "targetLang": "en",
+    "targetLangLabel": "英语",
+    "dialogues": [
+      {
+        "source": "mic",
+        "orig": "我们希望在下周五之前完成第一轮用户访谈，再根据反馈调整后续计划，并把需要其他团队协作的事项提前列出来。",
+        "trans": "We plan to finish the first round of interviews by next Friday, adjust the next steps based on feedback, and flag work that needs other teams.",
+        "language": "zh"
+      }
+    ]
+  },
+  "dual": {
+    "name": "两路同时说",
+    "targetLang": "en",
+    "targetLangLabel": "英语",
+    "dialogues": [
+      {
+        "source": "sys",
+        "orig": "我们下周二再一起确认交付时间。",
+        "trans": "Let's confirm the delivery date next Tuesday.",
+        "language": "zh"
+      },
+      {
+        "source": "mic",
+        "orig": "我想补充一个客户反馈。",
+        "trans": "I'd like to add some customer feedback.",
+        "language": "zh"
+      }
+    ]
+  },
+  "same-lang": {
+    "name": "目标语言无需翻译",
+    "targetLang": "en",
+    "targetLangLabel": "英语",
+    "dialogues": [
+      {
+        "source": "sys",
+        "orig": "The next review is on Friday.",
+        "trans": "下一次评审安排在周五。",
+        "language": "en"
+      }
+    ]
+  },
+  "waiting": {
+    "name": "翻译等待",
+    "targetLang": "en",
+    "targetLangLabel": "英语",
+    "dialogues": [
+      {
+        "source": "sys",
+        "orig": "我们先确认一下会议时间。",
+        "trans": "__WAITING__",
+        "language": "zh"
+      }
+    ]
+  }
+};
+
+    // ----------------------------------------------------------------------
+    // 全局状态 (State Store)
+    // ----------------------------------------------------------------------
+    const state = {
+      variant: 'A',               // 'A' | 'B' | 'C'
+      transcriptionOn: true,      // 实时转写
+      translationOn: true,        // 实时翻译
+      mergeAudio: false,          // 是否合并两路识别
+      targetLang: 'en',           // 目标语言代码
+      targetLangLabel: '英语',    // 目标语言中文显示
+      scenarioKey: 'zh-en',       // 当前场景
+      isPlaying: false,            // 演示流水出字播放状态
+      isPinned: false,            // 是否固定
+      isExpanded: false,          // 是否展开大窗
+      isStopped: false,           // 录音是否停止
+      activeSource: 'sys',        // 当前聚焦音源: 'sys' | 'mic'
+      filterExpanded: 'all',      // 展开窗口声轨过滤: 'all' | 'sys' | 'mic'
+      secondsElapsed: 252,        // 计时器秒数 (04:12)
+      dialogueIndex: 0,           // 场景对话索引
+      charProgress: 0,            // 当前段落字符出字进度
+      history: []                 // 展开时间线历史记录
+    };
+
+    // 预填初始历史记录 (确保展开时有内容可滚动查看)
+    state.history = [
+  {
+    "time": "04:01",
+    "source": "sys",
+    "orig": "今天先回顾本周的进展。",
+    "trans": "Let's start with this week's progress."
+  },
+  {
+    "time": "04:06",
+    "source": "mic",
+    "orig": "好的，我先分享客户的反馈。",
+    "trans": "Sure. I'll share the customer feedback first."
+  }
+];
+
+    // ----------------------------------------------------------------------
+    // URL 参数与 iframe postMessage 监听 (父页面联动支持)
+    // ----------------------------------------------------------------------
+    function initUrlParams() {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const v = urlParams.get('variant');
+        if (v && ['A', 'B', 'C'].includes(v.toUpperCase())) {
+          switchVariant(v.toUpperCase(), false);
+        }
+      } catch (e) {
+        console.warn('URL params parsing error:', e);
+      }
+    }
+
+    window.addEventListener('message', function(event) {
+      if (!event.data) return;
+      if (event.data.type === 'SET_VARIANT' && ['A', 'B', 'C'].includes(event.data.variant)) {
+        switchVariant(event.data.variant, true);
+      } else if (event.data.variant && ['A', 'B', 'C'].includes(event.data.variant)) {
+        switchVariant(event.data.variant, true);
+      }
+    });
+
+    // ----------------------------------------------------------------------
+    // 方案切换 (Variant Switching: A / B / C)
+    // ----------------------------------------------------------------------
+    function switchVariant(variantLetter, updateUrl = true) {
+      state.variant = variantLetter;
+
+      // 更新演示区按钮高亮
+      document.querySelectorAll('.variant-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById(`btn-var-${variantLetter.toLowerCase()}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      // 切换对应小窗的 DOM 展示
+      document.getElementById('view-variant-a').style.display = (variantLetter === 'A') ? 'flex' : 'none';
+      document.getElementById('view-variant-b').style.display = (variantLetter === 'B') ? 'flex' : 'none';
+      document.getElementById('view-variant-c').style.display = (variantLetter === 'C') ? 'flex' : 'none';
+
+      // 重新评估小窗内容与尺寸
+      renderCurrentSubtitles();
+      updateWidgetDimensionsHUD();
+
+      if (updateUrl) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('variant', variantLetter);
+          window.history.replaceState({}, '', url.toString());
+        } catch (e) {}
+      }
+    }
+
+    // ----------------------------------------------------------------------
+    // 独立开关控制 (转写 / 翻译 / 合并 / 目标语言)
+    // ----------------------------------------------------------------------
+    function toggleTranscription() {
+      state.transcriptionOn = !state.transcriptionOn;
+      document.getElementById('toggle-transcription').classList.toggle('checked', state.transcriptionOn);
+      renderCurrentSubtitles();
+      updateWidgetDimensionsHUD();
+    }
+
+    function toggleTranslation() {
+      state.translationOn = !state.translationOn;
+      document.getElementById('toggle-translation').classList.toggle('checked', state.translationOn);
+      renderCurrentSubtitles();
+      updateWidgetDimensionsHUD();
+    }
+
+    function toggleAudioMerge() {
+      state.mergeAudio = !state.mergeAudio;
+      document.getElementById('toggle-merge').classList.toggle('checked', state.mergeAudio);
+
+      const modeLabel = state.mergeAudio ? '合并识别 (单声道混音省资源)' : '独立双轨分离识别 (L:系统 / R:麦克)';
+      document.getElementById('hud-audio-mode').textContent = modeLabel;
+
+      renderCurrentSubtitles();
+      renderExpandedTimeline();
+    }
+
+    function cycleTargetLanguage() {
+      const langs = [
+        { code: 'en', label: '英语' },
+        { code: 'zh', label: '中文' }
+      ];
+      const curIdx = langs.findIndex(l => l.code === state.targetLang);
+      const next = langs[(curIdx + 1) % langs.length];
+      state.targetLang = next.code;
+      state.targetLangLabel = next.label;
+      document.getElementById('lbl-target-lang').textContent = next.label;
+      document.getElementById('va-target-tag').textContent = `目标: ${next.label}`;
+      document.getElementById('exp-status-hint').textContent = `双轨识别运行中 · 目标语言: ${next.label}`;
+
+      renderCurrentSubtitles();
+    }
+
+    // ----------------------------------------------------------------------
+    // 语境场景切换 (Scenario Switching)
+    // ----------------------------------------------------------------------
+    function selectScenario(scKey) {
+      if (!SCENARIOS[scKey]) return;
+      state.scenarioKey = scKey;
+      state.dialogueIndex = 0;
+      state.charProgress = state.isPlaying ? 0 : SCENARIOS[scKey].dialogues[0].orig.length;
+
+      // 切换按钮激活态
+      document.querySelectorAll('.scenario-btn').forEach(btn => btn.classList.remove('active'));
+      const activeScBtn = document.getElementById(`sc-btn-${scKey}`);
+      if (activeScBtn) activeScBtn.classList.add('active');
+
+      const sc = SCENARIOS[scKey];
+      state.targetLang = sc.targetLang;
+      state.targetLangLabel = sc.targetLangLabel;
+      document.getElementById('lbl-target-lang').textContent = sc.targetLangLabel;
+      document.getElementById('va-target-tag').textContent = `目标: ${sc.targetLangLabel}`;
+      document.getElementById('exp-status-hint').textContent = `双轨识别运行中 · 目标语言: ${sc.targetLangLabel}`;
+
+      // 重置并出字
+      renderCurrentSubtitles();
+      updateWidgetDimensionsHUD();
+    }
+
+    // ----------------------------------------------------------------------
+    // 核心出字与双语内容渲染引擎
+    // ----------------------------------------------------------------------
+    function renderCurrentSubtitles() {
+      const sc = SCENARIOS[state.scenarioKey] || SCENARIOS['zh-en'];
+      const curItem = sc.dialogues[state.dialogueIndex % sc.dialogues.length];
+      ['va-content-box','vb-content-box','vc-content-box'].forEach(id => { document.getElementById(id).style.display = state.transcriptionOn || state.translationOn ? '' : 'none'; });
+      state.activeSource = curItem.source;
+
+      const isSys = (curItem.source === 'sys');
+      const sourceBadgeText = state.mergeAudio ? '🎛️ 合并' : (isSys ? '💻 系统' : '🎙️ 麦克');
+      const sourceBadgeClass = state.mergeAudio ? 'source-badge mix' : (isSys ? 'source-badge sys' : 'source-badge mic');
+
+      // 更新来源徽章 (方案 A, B, C)
+      const vaBadge = document.getElementById('va-source-badge');
+      vaBadge.textContent = sourceBadgeText;
+      vaBadge.className = sourceBadgeClass;
+
+      const vbBadge = document.getElementById('vb-source-badge');
+      vbBadge.textContent = state.mergeAudio ? 'MIX' : (isSys ? 'SYS' : 'MIC');
+      vbBadge.className = sourceBadgeClass;
+
+      const vcBadge = document.getElementById('vc-source-badge');
+      vcBadge.textContent = sourceBadgeText;
+      vcBadge.className = sourceBadgeClass;
+
+      // 双路同时说话时的侧轨告警
+      const vcDualAlert = document.getElementById('vc-dual-alert');
+      if (state.scenarioKey === 'dual') {
+        vcDualAlert.style.display = 'inline-block';
+      } else {
+        vcDualAlert.style.display = 'none';
+      }
+
+      // 计算流式出字文本
+      const origFull = curItem.orig;
+      const transFull = curItem.trans;
+      const slicedOrig = origFull.substring(0, Math.max(1, state.charProgress));
+
+      // 译文渲染逻辑 (考虑：目标语言无需翻译、等待时延、开关矩阵)
+      let renderedTrans = '';
+      let isSameLang = curItem.language === state.targetLang;
+      let isWaiting = transFull === '__WAITING__' && !isSameLang;
+
+      if (isWaiting) {
+        renderedTrans = `<span class="waiting-shimmer">⏳ 翻译中 · 正在等待响应...</span>`;
+      } else if (isSameLang) {
+        renderedTrans = slicedOrig;
+      } else {
+        // 同步流出对应比例的译文
+        const ratio = origFull.length > 0 ? (slicedOrig.length / origFull.length) : 1;
+        const transLen = Math.max(1, Math.floor(transFull.length * ratio));
+        renderedTrans = transFull.substring(0, transLen);
+      }
+
+      // 1. 方案 A 文本更新与可见性控制
+      const vaOrigEl = document.getElementById('va-text-orig');
+      const vaTransEl = document.getElementById('va-text-trans');
+      const vaNoSub = document.getElementById('va-no-sub-notice');
+      document.getElementById('va-orig-body').textContent = slicedOrig;
+      document.getElementById('va-trans-body').innerHTML = renderedTrans;
+
+      // 2. 方案 B 文本更新与可见性控制
+      const vbOrigEl = document.getElementById('vb-text-orig');
+      const vbTransEl = document.getElementById('vb-text-trans');
+      const vbNoSub = document.getElementById('vb-no-sub-notice');
+      document.getElementById('vb-orig-body').textContent = slicedOrig;
+      document.getElementById('vb-trans-body').innerHTML = renderedTrans;
+      document.getElementById('vb-tag-orig-lang').textContent = curItem.language === 'en' ? 'EN' : '中';
+      document.querySelector('#view-variant-b .vb-tag-inline.trans').textContent = state.targetLang === 'en' ? 'EN' : '中';
+
+      // 3. 方案 C 文本更新与可见性控制
+      const vcOrigEl = document.getElementById('vc-text-orig');
+      const vcTransEl = document.getElementById('vc-text-trans');
+      const vcNoSub = document.getElementById('vc-no-sub-notice');
+      document.getElementById('vc-orig-body').textContent = slicedOrig;
+      document.getElementById('vc-trans-body').innerHTML = renderedTrans;
+
+      // --------------------------------------------------
+      // 四象限显示控制矩阵：
+      // - 转写开 & 翻译开: 双行
+      // - 仅转写开: 仅原文行
+      // - 仅翻译开: 仅译文行 (原文不呈现)
+      // - 两者皆关: 仅录音提示，无字幕
+      // --------------------------------------------------
+      const bothOn = state.transcriptionOn && state.translationOn;
+      const onlyOrig = state.transcriptionOn && !state.translationOn;
+      const onlyTrans = !state.transcriptionOn && state.translationOn;
+      const bothOff = !state.transcriptionOn && !state.translationOn;
+
+      // 处理若“已是目标语言”，则不重复显示第二行
+      const hideTransDueToSameLang = isSameLang && state.transcriptionOn;
+
+      // A 方案可见性
+      vaOrigEl.style.display = (state.transcriptionOn) ? '-webkit-box' : 'none';
+      vaTransEl.style.display = (state.translationOn && !hideTransDueToSameLang) ? '-webkit-box' : 'none';
+      vaNoSub.style.display = bothOff ? 'block' : 'none';
+
+      // B 方案可见性
+      vbOrigEl.style.display = (state.transcriptionOn) ? '-webkit-box' : 'none';
+      vbTransEl.style.display = (state.translationOn && !hideTransDueToSameLang) ? '-webkit-box' : 'none';
+      vbNoSub.style.display = bothOff ? 'block' : 'none';
+
+      // C 方案可见性
+      vcOrigEl.style.display = (state.transcriptionOn) ? '-webkit-box' : 'none';
+      vcTransEl.style.display = (state.translationOn && !hideTransDueToSameLang) ? '-webkit-box' : 'none';
+      vcNoSub.style.display = bothOff ? 'block' : 'none';
+
+      // 声道动态跳动更新
+      updateMetersSpeaking(isSys);
+
+      // HUD 状态更新
+      document.getElementById('hud-active-source').textContent = isSys ? '💻 系统音频 (左声道)' : '🎙️ 麦克风 (右声道)';
+
+      let subModeText = '双行 (原文+译文)';
+      if (bothOff) subModeText = '纯音频录音 (字幕关闭)';
+      else if (onlyOrig) subModeText = '单行 (仅原文转写)';
+      else if (onlyTrans) subModeText = '单行 (仅实时译文)';
+      else if (hideTransDueToSameLang) subModeText = '单行 (目标语言无需翻译)';
+      document.getElementById('hud-subtitle-mode').textContent = subModeText;
+    }
+
+    // 动态波形与 VU 电平状态联动
+    function updateMetersSpeaking(isSys) {
+      const vaMeterL = document.getElementById('va-meter-l');
+      const vaMeterR = document.getElementById('va-meter-r');
+      const vbMeterL = document.getElementById('vb-meter-l');
+      const vbMeterR = document.getElementById('vb-meter-r');
+      const vcVuL = document.getElementById('vc-vu-l');
+      const vcVuR = document.getElementById('vc-vu-r');
+
+      if (isSys) {
+        vaMeterL.classList.add('speaking');
+        vaMeterR.classList.remove('speaking');
+        vbMeterL.classList.add('speaking');
+        vbMeterR.classList.remove('speaking');
+        vcVuL.style.height = '85%';
+        vcVuR.style.height = state.scenarioKey === 'dual' ? '65%' : '15%';
+      } else {
+        vaMeterL.classList.remove('speaking');
+        vaMeterR.classList.add('speaking');
+        vbMeterL.classList.remove('speaking');
+        vbMeterR.classList.add('speaking');
+        vcVuL.style.height = state.scenarioKey === 'dual' ? '70%' : '15%';
+        vcVuR.style.height = '85%';
+      }
+    }
+
+    // ----------------------------------------------------------------------
+    // 展开态大窗时间线渲染 (双轨独立完整时间线)
+    // ----------------------------------------------------------------------
+    function renderExpandedTimeline() {
+      const container = document.getElementById('exp-history-list');
+      container.innerHTML = '';
+
+      let items = state.history;
+      if (state.filterExpanded === 'sys') {
+        items = items.filter(i => i.source === 'sys');
+      } else if (state.filterExpanded === 'mic') {
+        items = items.filter(i => i.source === 'mic');
+      }
+
+      items.forEach(item => {
+        const isSys = item.source === 'sys';
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `exp-msg-item ${isSys ? 'sys-item' : 'mic-item'}`;
+
+        const badgeClass = isSys ? 'source-badge sys' : 'source-badge mic';
+        const badgeLabel = isSys ? '💻 系统音频' : '🎙️ 麦克风';
+
+        let bodyHtml = '';
+        if (state.transcriptionOn) {
+          bodyHtml += `<div class="exp-msg-orig">${escapeHtml(item.orig)}</div>`;
+        }
+        if (state.translationOn && item.trans && item.trans !== '[目标语言无需翻译]') {
+          bodyHtml += `<div class="exp-msg-trans">${escapeHtml(item.trans)}</div>`;
+        }
+        if (!state.transcriptionOn && !state.translationOn) {
+          bodyHtml += `<div style="font-size:10px; color:var(--text-sec);">[音频片段已记录 · 字幕关闭]</div>`;
+        }
+
+        msgDiv.innerHTML = `
+          <div class="exp-msg-meta">
+            <span class="${badgeClass}">${badgeLabel}</span>
+            <span>${item.time}</span>
+          </div>
+          ${bodyHtml}
+        `;
+        container.appendChild(msgDiv);
+      });
+
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function setExpandedFilter(filterKey, btnEl) {
+      state.filterExpanded = filterKey;
+      document.querySelectorAll('.exp-filter-pill').forEach(p => p.classList.remove('active'));
+      btnEl.classList.add('active');
+      renderExpandedTimeline();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ----------------------------------------------------------------------
+    // 窗口尺寸与 HUD 实时测量
+    // ----------------------------------------------------------------------
+    function updateWidgetDimensionsHUD() {
+      const widget = document.getElementById('tape-widget');
+      if (!widget) return;
+      const rect = widget.getBoundingClientRect();
+      const w = Math.round(rect.width);
+      const h = Math.round(rect.height);
+
+      const hudDim = document.getElementById('hud-dimensions');
+      if (hudDim) {
+        hudDim.textContent = `${w} × ${h} px`;
+      }
+    }
+
+    // ----------------------------------------------------------------------
+    // 交互操作 (Pin, Expand, Stop, Play/Pause)
+    // ----------------------------------------------------------------------
+    function togglePin() {
+      state.isPinned = !state.isPinned;
+      const pinButtons = [document.getElementById('va-btn-pin'), document.getElementById('vb-btn-pin'), document.getElementById('vc-btn-pin'), document.getElementById('exp-btn-pin')];
+      pinButtons.forEach(btn => {
+        if (btn) { btn.classList.toggle('active', state.isPinned); btn.title = state.isPinned ? '取消置顶' : '置顶'; btn.setAttribute('aria-pressed',String(state.isPinned)); }
+      });
+      document.getElementById('hud-pin-status').textContent = state.isPinned ? '已置顶固定' : '未置顶';
+    }
+
+    function toggleExpand() {
+      state.isExpanded = !state.isExpanded;
+      const widget = document.getElementById('tape-widget');
+      widget.classList.toggle('is-expanded', state.isExpanded);
+
+      const toggleExpandLbl = document.getElementById('btn-toggle-expand-lbl');
+      if (toggleExpandLbl) {
+        toggleExpandLbl.textContent = state.isExpanded ? '↙ 收起为 196px' : '⤢ 展开大窗 (380×320)';
+      }
+
+      if (state.isExpanded) {
+        renderExpandedTimeline();
+      }
+
+      setTimeout(updateWidgetDimensionsHUD, 260);
+    }
+
+    function stopRecording() {
+      state.isStopped = true;
+      state.isPlaying = false;
+      document.getElementById('stopped-overlay').classList.add('show');
+      document.getElementById('stopped-duration-hint').textContent = `演示已结束 · ${formatTimer(state.secondsElapsed)}`;
+      document.getElementById('btn-play-pause').innerHTML = '<span>▶ 恢复演示</span>';
+    }
+
+    function restartRecording() {
+      state.isStopped = false;
+      state.isPlaying = true;
+      state.secondsElapsed = 252;
+      state.dialogueIndex = 0;
+      state.charProgress = 0;
+      document.getElementById('stopped-overlay').classList.remove('show');
+      document.getElementById('btn-play-pause').innerHTML = '<span>⏸ 暂停出字</span>';
+      renderCurrentSubtitles();
+      updateWidgetDimensionsHUD();
+    }
+
+    function togglePlayPause() {
+      if (state.isStopped) {
+        restartRecording();
+        return;
+      }
+      state.isPlaying = !state.isPlaying;
+      document.getElementById('btn-play-pause').innerHTML = state.isPlaying ? '<span>⏸ 暂停出字</span>' : '<span>▶ 继续出字</span>';
+    }
+
+    function stepForward() {
+      state.isPlaying = false;
+      document.getElementById('btn-play-pause').innerHTML = '<span>▶ 继续出字</span>';
+      advanceCharProgress();
+      renderCurrentSubtitles();
+      updateWidgetDimensionsHUD();
+    }
+
+    function formatTimer(secs) {
+      const m = Math.floor(secs / 60).toString().padStart(2, '0');
+      const s = (secs % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    // ----------------------------------------------------------------------
+    // 连续打字模拟时钟 (Tick Loop)
+    // ----------------------------------------------------------------------
+    function advanceCharProgress() {
+      const sc = SCENARIOS[state.scenarioKey] || SCENARIOS['zh-en'];
+      const curItem = sc.dialogues[state.dialogueIndex % sc.dialogues.length];
+      const maxLen = curItem.orig.length;
+
+      if (state.charProgress < maxLen) {
+        state.charProgress += 2; // 每次输出两个字符，模拟语音流式输出
+      } else {
+        // 完成当前对话，追加到历史并切换到下一句
+        const timeStr = formatTimer(state.secondsElapsed);
+        state.history.push({
+          time: timeStr,
+          source: curItem.source,
+          orig: curItem.orig,
+          trans: curItem.trans
+        });
+        if (state.history.length > 20) state.history.shift(); // 限制内存
+
+        if (state.isExpanded) renderExpandedTimeline();
+
+        state.dialogueIndex = (state.dialogueIndex + 1) % sc.dialogues.length;
+        state.charProgress = 0;
+      }
+    }
+
+    // 周期循环调度器 (出字 & 计时)
+    setInterval(() => {
+      if (!state.isPlaying || state.isStopped) return;
+      advanceCharProgress();
+      renderCurrentSubtitles();
+      updateWidgetDimensionsHUD();
+    }, 140);
+
+    // 1秒真实计时器
+    setInterval(() => {
+      if (!state.isPlaying || state.isStopped) return;
+      state.secondsElapsed++;
+      const timeStr = formatTimer(state.secondsElapsed);
+      document.getElementById('va-timer-text').textContent = timeStr;
+      document.getElementById('vb-timer-text').textContent = timeStr;
+      document.getElementById('vc-timer-text').textContent = timeStr;
+    }, 1000);
+
+    // 监听窗口尺寸变化保持 HUD 准确
+    window.addEventListener('resize', updateWidgetDimensionsHUD);
+
+    // 初始启动
+    togglePin();
+    initUrlParams();
+    state.charProgress = SCENARIOS[state.scenarioKey].dialogues[0].orig.length;
+    document.getElementById('btn-play-pause').innerHTML = '<span>▶ 继续出字</span>';
+    renderCurrentSubtitles();
+    renderExpandedTimeline();
+    updateWidgetDimensionsHUD();
+  window.addEventListener('keydown',event=>{if(event.target.closest('input,textarea,select,[contenteditable]'))return;if(['ArrowLeft','ArrowRight'].includes(event.key)){event.preventDefault();window.parent.postMessage({type:'meetingtape:cycle',direction:event.key==='ArrowRight'?1:-1},location.origin);}});
+  </script>
+</body>
+</html>
