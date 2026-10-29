@@ -12,6 +12,6 @@ public enum ExitCode: Int32, Sendable {
     case environment = 2
     /// An operation needs an active recording session and there is none.
     case noActiveSession = 3
-    /// Audio capture failed (in scaffold builds: capture is not implemented).
+    /// Capture, preservation, or finalization failed.
     case capture = 4
 }

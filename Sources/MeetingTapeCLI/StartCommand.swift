@@ -2,7 +2,7 @@ import Foundation
 import MeetingTapeCore
 
 enum StartCommand {
-    static func run(_ arguments: [String]) -> RunResult {
+    static func run(_ arguments: [String], start: (RecordingConfiguration) throws -> SessionSnapshot) -> RunResult {
         if arguments.contains("-h") || arguments.contains("--help") {
             return RunResult(exitCode: ExitCode.ok, stdout: HelpText.start)
         }
@@ -31,8 +31,6 @@ enum StartCommand {
             return usage("error: --out is required and no default output directory exists\nrun 'meetingtape help start' for usage\n")
         }
 
-        // Validate the output directory up front; the CLI has no side effects
-        // on it until capture actually starts.
         let fileManager = FileManager.default
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: out, isDirectory: &isDirectory) else {
@@ -45,10 +43,10 @@ enum StartCommand {
             return usage("error: \(MeetingTapeError.outDirectoryNotWritable(out))\n")
         }
 
-        let configuration = RecordingConfiguration(outputDirectory: out, keepRawMicrophone: keepRaw)
+        let configuration = RecordingConfiguration(outputDirectory: URL(fileURLWithPath: out).standardizedFileURL.path, keepRawMicrophone: keepRaw)
         do {
-            try EngineFactory.defaultEngine().start(configuration)
-            return RunResult(exitCode: ExitCode.ok, stdout: "recording started\n")
+            let snapshot = try start(configuration)
+            return RunResult(exitCode: ExitCode.ok, stdout: "recording started\n" + snapshotText(snapshot))
         } catch {
             return RunResult(exitCode: ExitCode.capture, stderr: "error: \(error)\n")
         }

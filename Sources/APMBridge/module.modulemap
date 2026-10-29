@@ -1,0 +1,4 @@
+module APMBridge {
+    header "meetingtape_apm.h"
+    export *
+}
