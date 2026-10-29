@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import MeetingTapeCore
+import MeetingTapeTranscription
 
 protocol HostSession: AnyObject, Sendable {
     func start(_ configuration: RecordingConfiguration) throws -> SessionSnapshot
@@ -17,10 +18,12 @@ final class RecordingHost: @unchecked Sendable {
     private var listener: Int32 = -1
     private let finishLock = NSLock()
     private var finalResponse: HostResponse?
+    private let onCompleted: (@Sendable (SessionSnapshot) -> Void)?
 
-    init(paths: HostPaths, session: any HostSession = RecordingSession()) throws {
+    init(paths: HostPaths, session: any HostSession = RecordingSession(), onCompleted: (@Sendable (SessionSnapshot) -> Void)? = nil) throws {
         self.paths = paths
         self.session = session
+        self.onCompleted = onCompleted
         lifecycle = try SessionLock(directory: paths.directory, name: "session.lock")
     }
 
@@ -89,6 +92,7 @@ final class RecordingHost: @unchecked Sendable {
             let result = try session.stop()
             let response = HostResponse(snapshot: result, error: result.state == .completed ? nil : result.failureReason ?? "recording finalization failed")
             try? SessionCache.store(result, paths: paths)
+            if result.state == .completed { onCompleted?(result) }
             finalResponse = response
             return response
         } catch {
@@ -144,7 +148,7 @@ enum HostCommand {
         let configuration = RecordingConfiguration(outputDirectory: out, keepRawMicrophone: keepRaw)
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                let host = try RecordingHost(paths: HostPaths())
+                let host = try RecordingHost(paths: HostPaths(), onCompleted: { TranscriptionManager.automatic($0) })
                 holder.set(host)
                 let snapshot = try host.start(configuration)
                 try publish(HostResponse(snapshot: snapshot), to: ready)

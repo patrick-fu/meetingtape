@@ -32,6 +32,7 @@ final class AppModel: ObservableObject {
     var onChange: (() -> Void)?
     var onOpenLibrary: (() -> Void)?
     private let client = RecordingClient()
+    let transcription = TranscriptionModel()
     private let files = LibraryFiles()
     private let defaults = UserDefaults.standard
     private var saveTask: Task<Void, Never>?
@@ -75,6 +76,7 @@ final class AppModel: ObservableObject {
     }
 
     func launch() {
+        transcription.launch()
         Task {
             do { records = try await files.load() }
             catch { libraryReadOnly = true; errorMessage = "无法读取资料库索引，原文件已保留。\n\(error.localizedDescription)" }
@@ -303,6 +305,12 @@ final class AppModel: ObservableObject {
     func seek(_ value: Double) {
         guard let player else { return }
         player.currentTime = value; playbackSeconds = value
+    }
+
+    func playSegment(_ value: Double) {
+        guard !active, operation == nil else { return }
+        if !playing { togglePlayback() }
+        seek(value)
     }
 
     private func stopPlayback() {
