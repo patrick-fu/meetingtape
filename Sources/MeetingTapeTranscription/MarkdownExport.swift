@@ -7,6 +7,7 @@ public struct TranscriptExportVersion: Sendable, Identifiable {
     let run: TranscriptRun?
     let result: TranscriptResult?
     let live: LiveCaptionArchive?
+    public var exportable: Bool { result != nil || live != nil || run?.state != .succeeded }
 
     public init(task: TranscriptionTask, run: TranscriptRun, result: TranscriptResult?) {
         id = task.id + ":" + run.model.rawValue
@@ -42,15 +43,7 @@ public struct TranscriptExportSnapshot: Sendable {
         var versions: [TranscriptExportVersion] = []
         for task in tasks {
             for run in task.runs {
-                let result: TranscriptResult?
-                let directory = try store.taskDirectory(task.id)
-                let hasResult = run.sources.contains { source in
-                    let prefix = TranscriptionStore.resultPrefix(run.model, source: source.source)
-                    return [".json", ".partial.json"].contains { FileManager.default.fileExists(atPath: directory.appendingPathComponent(prefix + $0).path) }
-                }
-                if run.state == .succeeded, !hasResult { throw TranscriptionFailure("已完成的转写缺少正文文件，不能导出为空稿。") }
-                result = hasResult ? try store.result(task.id, model: run.model) : nil
-                versions.append(TranscriptExportVersion(task: task, run: run, result: result))
+                versions.append(TranscriptExportVersion(task: task, run: run, result: try? store.result(task.id, model: run.model)))
             }
         }
         if let live = try captions.readSnapshot(sessionID) { versions.append(TranscriptExportVersion(live: live)) }
@@ -60,6 +53,7 @@ public struct TranscriptExportSnapshot: Sendable {
 
     public func markdown(primary: String, includeVersions: Bool = false) throws -> String {
         guard let selected = versions.first(where: { $0.id == primary }) else { throw TranscriptionFailure("主稿不存在，请从可用版本中明确选择。") }
+        guard selected.exportable else { throw TranscriptionFailure("所选版本的正文缺失或不可读取。") }
         let included = [selected] + (includeVersions ? versions.filter { $0.id != primary } : [])
         var lines = ["# " + Self.text(title), "", "- 主稿：" + Self.text(selected.title)]
         if let duration { lines.append("- 录音时长：" + Self.time(duration)) }
@@ -76,15 +70,18 @@ public struct TranscriptExportSnapshot: Sendable {
     private static func body(_ version: TranscriptExportVersion) -> [String] {
         var lines: [String] = []
         if let run = version.run {
-            let missing = version.result?.missingSources ?? []
-            lines += ["状态：\(missing.isEmpty ? state(run.state) : "部分正文")", ""]
-            for source in run.sources { lines += ["- \(source.source.name)：\(state(source.state))\(missing.contains(source.source) ? "，正文缺失" : "")"] }
+            let unavailable = version.result?.unavailableSources ?? []
+            let availability = version.result == nil && run.state == .succeeded ? "正文缺失或不可读取" : unavailable.isEmpty ? state(run.state) : "部分正文"
+            lines += ["状态：\(availability)", ""]
+            for source in run.sources { lines += ["- \(source.source.name)：\(state(source.state))\(unavailable.contains(source.source) ? "，正文缺失或不可读取" : "")"] }
             lines.append("")
             for segment in version.result?.segments ?? [] {
                 let precision = segment.precision == "chunk" ? " · 音频块时间" : ""
                 lines += ["**[\(time(segment.start, milliseconds: segment.precision != "chunk"))–\(time(segment.end, milliseconds: segment.precision != "chunk"))] \(segment.source.name)\(precision)**", "", text(segment.text), ""]
             }
-            if version.result?.segments.isEmpty != false { lines += [run.state == .succeeded ? "未识别到语音。" : "未取得完整正文，已保存的结果将保留。", ""] }
+            if let result = version.result {
+                if result.segments.isEmpty { lines += [result.partial ? "未取得完整正文，已保存的结果将保留。" : "未识别到语音。", ""] }
+            } else { lines += ["暂无可读取正文，执行记录已保留。", ""] }
         }
         if let live = version.live {
             lines += ["状态：\(live.complete ? "完成" : "部分字幕，含未覆盖或未定稿区间")", ""]

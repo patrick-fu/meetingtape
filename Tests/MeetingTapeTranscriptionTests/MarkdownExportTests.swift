@@ -2,7 +2,8 @@ import Foundation
 import Testing
 @testable import MeetingTapeTranscription
 
-@Test func exportPreservesReadableSourceAndReportsMissingSuccessfulSource() throws {
+@Test(arguments: ["missing", "damaged", "partial"])
+func exportPreservesReadableSourceAndReportsMissingSuccessfulSource(artifact: String) throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("meetingtape-missing-source-\(UUID().uuidString)")
     defer { try? FileManager.default.removeItem(at: root) }
     let store = try TranscriptionStore(root: root)
@@ -13,15 +14,47 @@ import Testing
     try store.save(task)
     let result = TranscriptResult(model: .doubao, revision: "fixture", segments: [TranscriptSegment(id: 0, start: 1, end: 4, text: "可读取的系统原文", source: .system)])
     try store.write(result, to: store.resultPath(task.id, model: .doubao, source: .system))
+    if artifact != "missing" {
+        try Data("{".utf8).write(to: store.resultPath(task.id, model: .doubao, source: .microphone))
+    }
+    if artifact == "partial" {
+        let partial = TranscriptResult(model: .doubao, revision: "fixture", segments: [TranscriptSegment(id: 1, start: 2, end: 5, text: "可恢复的部分麦克风原文", source: .microphone)])
+        try store.write(LocalProgress(result: partial, completedChunks: 1), to: store.resultPath(task.id, model: .doubao, source: .microphone, partial: true))
+    }
     let before = try Data(contentsOf: store.taskDirectory(task.id).appendingPathComponent("task.json"))
     let loaded = try store.result(task.id, model: .doubao)
     let snapshot = try TranscriptExportSnapshot.load(task.id, store: store, captions: LiveCaptionStore(directory: root.appendingPathComponent("captions")))
     let markdown = try snapshot.markdown(primary: task.id + ":doubao")
     #expect(loaded.partial)
     #expect(markdown.contains("可读取的系统原文"))
-    #expect(markdown.contains("麦克风：成功，正文缺失"))
+    #expect(markdown.contains("麦克风：成功，正文缺失或不可读取"))
     #expect(markdown.contains("状态：部分正文"))
+    #expect(markdown.contains("可恢复的部分麦克风原文") == (artifact == "partial"))
     #expect(try Data(contentsOf: store.taskDirectory(task.id).appendingPathComponent("task.json")) == before)
+    if artifact != "missing" { #expect(try Data(contentsOf: store.resultPath(task.id, model: .doubao, source: .microphone)) == Data("{".utf8)) }
+}
+
+@Test func unreadableOldVersionDoesNotBlockAnIndependentPrimary() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("meetingtape-unreadable-version-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = try TranscriptionStore(root: root)
+    var old = TranscriptRun(model: .doubao, revision: "fixture")
+    var readable = TranscriptRun(model: .moss, revision: "fixture")
+    old.sources[0].state = .succeeded; readable.sources[0].state = .succeeded
+    var task = TranscriptionTask(id: UUID().uuidString.lowercased(), inputPath: "/fixture.m4a", inputSHA256: "fixture", duration: 12, createdAt: "2026-10-30T00:00:00Z", primaryModel: .moss, runs: [old, readable])
+    try TranscriptionStore.directory(store.taskDirectory(task.id)); try store.save(task)
+    try store.write(TranscriptResult(model: .moss, revision: "fixture", segments: [TranscriptSegment(id: 0, start: 1, end: 4, text: "独立完好的主稿")]), to: store.resultPath(task.id, model: .moss, source: .merged))
+    let snapshot = try TranscriptExportSnapshot.load(task.id, store: store, captions: LiveCaptionStore(directory: root.appendingPathComponent("captions")))
+    let single = try snapshot.markdown(primary: task.id + ":moss")
+    #expect(single.contains("独立完好的主稿") && !single.contains("正文缺失或不可读取"))
+    let all = try snapshot.markdown(primary: task.id + ":moss", includeVersions: true)
+    #expect(all.contains("独立完好的主稿") && all.contains("正文缺失或不可读取"))
+    #expect(throws: TranscriptionFailure.self) { try snapshot.markdown(primary: task.id + ":doubao") }
+    task.runs[0].sources[0].state = .failed
+    try store.save(task)
+    let failed = try TranscriptExportSnapshot.load(task.id, store: store, captions: LiveCaptionStore(directory: root.appendingPathComponent("captions")))
+    let failureRecord = try failed.markdown(primary: task.id + ":doubao")
+    #expect(failureRecord.contains("状态：失败") && failureRecord.contains("执行记录已保留"))
 }
 
 @Test func markdownKeepsVersionsSourcesAndEscapesModelText() throws {

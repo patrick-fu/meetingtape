@@ -57,8 +57,8 @@ struct TranscriptSection: View {
                     }
                 }
                 if let result {
-                    if !result.missingSources.isEmpty {
-                        Text(result.missingSources.map(\.name).joined(separator: "、") + "正文缺失，以下为可读取的部分结果").foregroundStyle(.orange).font(.system(size: 11))
+                    if !result.unavailableSources.isEmpty {
+                        Text(result.unavailableSources.map(\.name).joined(separator: "、") + "正文缺失或不可读取，以下为可读取的部分结果").foregroundStyle(.orange).font(.system(size: 11))
                     } else if result.partial { Text("部分结果，转写尚未完整完成").foregroundStyle(.orange).font(.system(size: 11)) }
                     if result.segments.isEmpty { Text(result.partial ? "暂无已识别文本" : "未识别到语音").foregroundStyle(.secondary).font(.system(size: 12)) }
                     ForEach(result.segments) { segment in
@@ -95,7 +95,7 @@ struct TranscriptSection: View {
                         }.padding(.vertical, 9)
                         Divider().opacity(0.45)
                     }
-                } else if task.finished { Text("选择已完成的模型结果查看正文。") .font(.system(size: 12)).foregroundStyle(.secondary) }
+                } else if task.finished { Text("正文缺失或不可读取，执行记录已保留。") .font(.system(size: 12)).foregroundStyle(.orange) }
             }
         }
         .onAppear { selected = transcription.inventory?.settings.models ?? [.qwen] }
