@@ -1,0 +1,38 @@
+{
+  "selectedVariant": "F",
+  "name": "声框 · 黑白字幕气泡",
+  "selectedDate": "2026-10-30",
+  "generation": {
+    "tool": "image_gen.imagegen",
+    "mode": "built-in",
+    "requestedModel": "GPT Image 2",
+    "returnedModel": null,
+    "sourceSHA256": "9699c0d12ab170947cf693b5ef8513c2e990327034aa0046e2572f7f58c4a82b",
+    "sourcePixels": [
+      1254,
+      1254
+    ],
+    "prompt": "Use case: logo-brand.\nCreate ONE distinctive contemporary macOS app icon for MeetingTape, a utility that records meetings, keeps two audio tracks, and makes live captions.\nSquare 1024x1024 source image, edge-to-edge fully opaque background, unmasked square outer edges. This is the artwork itself, not a tile on a background, not a mockup, not a presentation sheet.\nArt direction: exceptionally clean geometric design, crisp vector-like filled shapes, optically balanced negative space, confident proportions. Think a carefully art-directed modern independent Mac utility with a memorable simple mark.\nHIG: center the main graphic in about 60-66 percent of the canvas. It must have a clear silhouette at 32px and 16px. A few thick filled shapes only; no fine strokes. Clear edges for later system layer effects. Use no text except an abstract monogram only if specifically requested below.\nStrictly NO 3D render, isometric perspective, bevel, emboss, drop shadow, glossy light streak, glow, grain, texture, paper fold, cassette, tape reels, folded ribbon, infinity ribbon, microphone drawing, robot, AI sparkles, app screenshot, or extra decorations. Do not add an outer rounded-square border or prematurely round the canvas corners. Flat color, excellent spacing, high contrast. No watermark.\nDirection F — quiet, light, typographic geometric precision. Full-bleed very pale cool gray background. One large flat charcoal filled speech lozenge, more like a softly rounded horizontal square than a chat bubble cartoon, with a tiny integrated lower-left notch. Cut THREE bold vertical audio bars out of the middle using the pale background color; bar heights short, tall, medium. These negative-space bars are the entire internal detail. The mark should be distinctive and compact, and the notch must be integrated into the silhouette, not an extra part. Pure flat two-color design, similar polish to a modern graphic identity, not a 3D icon, no shadows."
+  },
+  "preparation": {
+    "source": "AppIcon-source.png",
+    "command": "swift scripts/build-app-icon.swift",
+    "master": "../AppIcon.png",
+    "masterPixels": [
+      1024,
+      1024
+    ],
+    "masterMasked": false,
+    "macOSBundleIcon": "../AppIcon.icns",
+    "format": "static multi-resolution ICNS for macOS 14.2 and later",
+    "legacyTile": {
+      "canvas": 1024,
+      "inset": 100,
+      "cornerRadius": 184
+    }
+  },
+  "references": [
+    "https://developer.apple.com/design/human-interface-guidelines/app-icons",
+    "https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleiconfile"
+  ]
+}
