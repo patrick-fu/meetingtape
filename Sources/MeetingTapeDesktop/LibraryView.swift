@@ -1,4 +1,5 @@
 import SwiftUI
+import MeetingTapeTranscription
 
 struct LibraryView: View {
     @ObservedObject var model: AppModel
@@ -53,7 +54,7 @@ struct LibraryView: View {
             Spacer()
             if model.active { Circle().fill(.red.opacity(0.75)).frame(width: 5, height: 5); Text(recordingTime(model.snapshot?.elapsedSeconds ?? 0)).monospacedDigit().font(.system(size: 11)).foregroundStyle(.secondary) }
             Button {
-                if model.active { model.panelExpanded = true; model.onChange?() } else { model.start() }
+                if model.active { model.panelExpanded = true; model.onShowRecordingPanel?(); model.onChange?() } else { model.start() }
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: model.active ? "pip" : "record.circle")
@@ -79,7 +80,7 @@ struct LibraryView: View {
             }.padding(.horizontal, 12).padding(.bottom, 15)
             Divider()
             if model.active {
-                Button { model.panelExpanded = true; model.onChange?() } label: {
+                Button { model.panelExpanded = true; model.onShowRecordingPanel?(); model.onChange?() } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "waveform").foregroundStyle(.red.opacity(0.75))
                         VStack(alignment: .leading, spacing: 5) {
@@ -131,9 +132,16 @@ struct LibraryView: View {
 
 private struct RecordingDetail: View {
     @ObservedObject var model: AppModel
+    @ObservedObject private var captions: LiveCaptionModel
     let item: RecordingItem
     @State private var editedTitle = ""
+    @State private var liveArchive: LiveCaptionArchive?
+    @State private var liveArchiveError: String?
     @FocusState private var editing: Bool
+
+    init(model: AppModel, item: RecordingItem) {
+        self.model = model; self.item = item; captions = model.liveCaptions
+    }
 
     var body: some View {
         ScrollView {
@@ -147,6 +155,8 @@ private struct RecordingDetail: View {
                     Button { model.toggleStar(item.id) } label: { Image(systemName: item.starred ? "star.fill" : "star").foregroundStyle(item.starred ? .orange.opacity(0.75) : .secondary).frame(width: 30, height: 30) }.buttonStyle(.plain).disabled(model.libraryReadOnly).accessibilityLabel(item.starred ? "取消标记" : "标记录音")
                 }
                 waveformPanel
+                if let liveArchive { LiveCaptionArchiveView(model: model, item: item, archive: liveArchive) }
+                if let liveArchiveError { Text(liveArchiveError).font(.system(size: 11)).foregroundStyle(.orange) }
                 TranscriptSection(model: model, item: item)
                 HStack(alignment: .top, spacing: 35) {
                     VStack(alignment: .leading, spacing: 15) {
@@ -177,6 +187,10 @@ private struct RecordingDetail: View {
                 }
             }.padding(31)
         }.onAppear { editedTitle = item.title }.onChange(of: editing) { _, focused in if !focused { commitTitle() } }
+            .task(id: "\(item.snapshot.sessionID)-\(captions.archiveRevision)") {
+                do { liveArchive = try await captions.store.load(item.snapshot.sessionID); liveArchiveError = nil }
+                catch { liveArchiveError = "实时字幕无法读取：\(error.localizedDescription)" }
+            }
     }
 
     private func commitTitle() { if editedTitle != item.title { model.rename(item.id, to: editedTitle) } }
@@ -243,7 +257,7 @@ struct SettingsView: View {
             }
             Toggle("保留原始麦克风音轨", isOn: Binding(get: { model.keepRaw }, set: { model.setKeepRaw($0) })).toggleStyle(.switch).controlSize(.small).disabled(model.active || model.operation != nil)
             if model.retainedRecoveryPath != nil { Button("查看上次恢复材料") { model.revealRecovery() }.font(.system(size: 11)) }
-            } else { TranscriptionSettingsView().environmentObject(model.transcription) }
+            } else { TranscriptionSettingsView(captions: model.liveCaptions).environmentObject(model.transcription) }
             HStack { Spacer(); Button("完成", action: dismiss).keyboardShortcut(.defaultAction) }
         }.padding(27).frame(width: tab == 0 ? 500 : 600)
     }

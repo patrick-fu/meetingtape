@@ -102,6 +102,7 @@ struct TranscriptSection: View {
 
 struct TranscriptionSettingsView: View {
     @EnvironmentObject private var model: TranscriptionModel
+    @ObservedObject var captions: LiveCaptionModel
     @State private var draft = TranscriptionSettings()
     @State private var apiKey = ""
     @State private var appID = ""
@@ -111,6 +112,12 @@ struct TranscriptionSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("实时字幕").font(.system(size: 13, weight: .semibold))
+                    Toggle("录音时开启豆包实时字幕", isOn: Binding(get: { captions.enabled }, set: { captions.setEnabled($0) })).font(.system(size: 12))
+                    if captions.enabled { Text("录音时实时上传系统音频和麦克风，使用你的豆包账户计费。") .font(.system(size: 11)).foregroundStyle(.orange) }
+                }
+                Divider()
                 VStack(alignment: .leading, spacing: 12) {
                     Text("默认模型").font(.system(size: 13, weight: .semibold))
                     HStack(spacing: 20) {

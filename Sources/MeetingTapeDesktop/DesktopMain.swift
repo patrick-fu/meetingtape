@@ -20,6 +20,7 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
     private var recordingPanel: RecordingPanel!
     private var statusItem: NSStatusItem!
     private var recordMenuItem: NSMenuItem!
+    private var panelMenuItem: NSMenuItem!
     private var terminationPending = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -40,11 +41,14 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
         statusMenu.addItem(withTitle: "打开资料库", action: #selector(showLibrary), keyEquivalent: "").target = self
         recordMenuItem = statusMenu.addItem(withTitle: "开始录音", action: #selector(toggleRecording), keyEquivalent: "")
         recordMenuItem.target = self
+        panelMenuItem = statusMenu.addItem(withTitle: "显示录音悬浮窗", action: #selector(showRecordingPanel), keyEquivalent: "")
+        panelMenuItem.target = self
         statusMenu.addItem(.separator())
         statusMenu.addItem(withTitle: "退出 MeetingTape", action: #selector(quit), keyEquivalent: "").target = self
         statusItem.menu = statusMenu
         model.onChange = { [weak self] in self?.updateWindows() }
         model.onOpenLibrary = { [weak self] in self?.showLibrary() }
+        model.onShowRecordingPanel = { [weak self] in self?.showRecordingPanel() }
         configureMenu()
         updateWindows()
         showLibrary()
@@ -57,15 +61,24 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
     @objc private func showLibrary() {
         libraryWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        if model.panelVisible { recordingPanel.orderFrontRegardless() }
+        if model.panelVisible && model.panelPinned { recordingPanel.orderFrontRegardless() }
+    }
+
+    @objc private func showRecordingPanel() {
+        guard model.panelVisible else { return }
+        recordingPanel.orderFrontRegardless()
     }
 
     private func updateWindows() {
         recordingPanel.resize(expanded: model.panelExpanded)
-        if model.panelVisible { recordingPanel.orderFrontRegardless() } else { recordingPanel.orderOut(nil) }
+        recordingPanel.setPinned(model.panelPinned)
+        if model.panelVisible {
+            if !recordingPanel.isVisible { recordingPanel.orderFrontRegardless() }
+        } else { recordingPanel.orderOut(nil) }
         statusItem.button?.title = model.active ? " " + recordingTime(model.snapshot?.elapsedSeconds ?? 0) : ""
         recordMenuItem.title = model.active ? "停止录音" : "开始录音"
         recordMenuItem.isEnabled = model.active ? model.canStop : model.canStart
+        panelMenuItem.isEnabled = model.panelVisible
     }
 
     @objc private func toggleRecording() {
@@ -125,6 +138,7 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
         let editRoot = NSMenuItem(); editRoot.submenu = edit; main.addItem(editRoot)
         let windows = NSMenu(title: "窗口")
         windows.addItem(withTitle: "资料库", action: #selector(showLibrary), keyEquivalent: "1").target = self
+        windows.addItem(withTitle: "录音悬浮窗", action: #selector(showRecordingPanel), keyEquivalent: "2").target = self
         windows.addItem(withTitle: "最小化", action: #selector(NSWindow.miniaturize(_:)), keyEquivalent: "m")
         let windowRoot = NSMenuItem(); windowRoot.submenu = windows; main.addItem(windowRoot)
         NSApp.mainMenu = main; NSApp.windowsMenu = windows
