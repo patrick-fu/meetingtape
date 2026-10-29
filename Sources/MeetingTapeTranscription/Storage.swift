@@ -80,24 +80,29 @@ public struct TranscriptionStore: Sendable {
         let snapshot = try self.task(task)
         guard let run = snapshot.runs.first(where: { $0.model == model }) else { throw TranscriptionFailure("此任务没有所选模型。") }
         var segments: [TranscriptSegment] = []
-        var missingSources: [TranscriptSource] = []
+        var unavailableSources: [TranscriptSource] = []
         var found = false
         for source in run.sources {
             let full = try resultPath(task, model: model, source: source.source)
-            let partial = try resultPath(task, model: model, source: source.source, partial: true)
-            if source.state == .succeeded, !FileManager.default.fileExists(atPath: full.path) { missingSources.append(source.source) }
-            let value: TranscriptResult
-            if FileManager.default.fileExists(atPath: full.path) { value = try read(full) }
-            else if FileManager.default.fileExists(atPath: partial.path) { value = try (read(partial) as LocalProgress).result }
-            else { continue }
-            guard value.model == model, value.revision == run.revision, Set(value.segments.map(\.id)).count == value.segments.count, value.segments.allSatisfy({
-                $0.source == source.source && $0.start.isFinite && $0.end.isFinite && $0.start >= 0 && $0.end >= $0.start && $0.end <= snapshot.duration + 0.1
-            }) else { throw TranscriptionFailure("转写正文与音源记录不匹配，原文件已保留。") }
-            found = true; segments.append(contentsOf: value.segments)
+            var unavailable = source.state == .succeeded && !FileManager.default.fileExists(atPath: full.path)
+            var loaded: TranscriptResult?
+            for partial in [false, true] {
+                let path = try resultPath(task, model: model, source: source.source, partial: partial)
+                guard FileManager.default.fileExists(atPath: path.path) else { continue }
+                do {
+                    let value: TranscriptResult = partial ? try (read(path) as LocalProgress).result : try read(path)
+                    guard value.model == model, value.revision == run.revision, Set(value.segments.map(\.id)).count == value.segments.count, value.segments.allSatisfy({
+                        $0.source == source.source && $0.start.isFinite && $0.end.isFinite && $0.start >= 0 && $0.end >= $0.start && $0.end <= snapshot.duration + 0.1
+                    }) else { throw TranscriptionFailure("转写正文与音源记录不匹配，原文件已保留。") }
+                    loaded = value; break
+                } catch { unavailable = true }
+            }
+            if unavailable { unavailableSources.append(source.source) }
+            if let loaded { found = true; segments.append(contentsOf: loaded.segments) }
         }
-        guard found else { throw TranscriptionFailure("此模型还没有可读取的正文。") }
+        guard found else { throw TranscriptionFailure("正文缺失或不可读取，原文件已保留。") }
         segments.sort { $0.start == $1.start ? $0.id < $1.id : $0.start < $1.start }
-        return TranscriptResult(model: model, revision: run.revision, segments: segments, partial: run.state != .succeeded || !missingSources.isEmpty, missingSources: missingSources)
+        return TranscriptResult(model: model, revision: run.revision, segments: segments, partial: run.state != .succeeded || !unavailableSources.isEmpty, unavailableSources: unavailableSources)
     }
     static func resultPrefix(_ model: TranscriptModel, source: TranscriptSource) -> String {
         source == .merged ? model.rawValue : model.rawValue + "." + source.rawValue
