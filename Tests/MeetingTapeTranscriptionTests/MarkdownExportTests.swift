@@ -2,6 +2,20 @@ import Foundation
 import Testing
 @testable import MeetingTapeTranscription
 
+@Test func markdownSourceStatisticsKeepRowsTogetherAndIncludeQueue() throws {
+    var run = TranscriptRun(model: .qwen, revision: "fixture", sources: [.system, .microphone])
+    run.sources[0].state = .succeeded; run.sources[1].state = .succeeded
+    run.sources[0].attempts = [TranscriptAttempt(queuedAt: "2026-10-30T00:00:00Z", startedAt: "2026-10-30T00:00:00Z", elapsedSeconds: 2, executionSeconds: 1, resourceScope: "runner-processes", observedChunks: 1, state: .succeeded)]
+    run.sources[1].attempts = [TranscriptAttempt(queuedAt: "2026-10-30T00:00:00Z", startedAt: "2026-10-30T00:00:10Z", elapsedSeconds: 5, executionSeconds: 3, state: .succeeded)]
+    let task = TranscriptionTask(id: UUID().uuidString.lowercased(), inputPath: "/fixture.m4a", inputSHA256: "fixture", duration: 12, createdAt: "2026-10-30T00:00:00Z", primaryModel: .qwen, runs: [run])
+    let result = TranscriptResult(model: .qwen, revision: "fixture", segments: [])
+    let version = TranscriptExportVersion(task: task, run: run, result: result)
+    let snapshot = TranscriptExportSnapshot(title: "排队统计", versions: [version], duration: 12)
+    let markdown = try snapshot.markdown(primary: version.id)
+    #expect(markdown.contains("| 10.00 s | 3.00 s | 15.00 s |"))
+    #expect(markdown.contains("| 系统音频 / 1 | 成功 | 未采集 | 0.00 s | 1.00 s | 2.00 s | 未采集 | 未采集 |\n| 麦克风 / 1 |"))
+}
+
 @Test(arguments: ["missing", "damaged", "partial"])
 func exportPreservesReadableSourceAndReportsMissingSuccessfulSource(artifact: String) throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("meetingtape-missing-source-\(UUID().uuidString)")
