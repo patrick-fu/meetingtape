@@ -55,6 +55,15 @@ func exportPreservesReadableSourceAndReportsMissingSuccessfulSource(artifact: St
     let failed = try TranscriptExportSnapshot.load(task.id, store: store, captions: LiveCaptionStore(directory: root.appendingPathComponent("captions")))
     let failureRecord = try failed.markdown(primary: task.id + ":doubao")
     #expect(failureRecord.contains("状态：失败") && failureRecord.contains("执行记录已保留"))
+    let captionDirectory = root.appendingPathComponent("captions")
+    try TranscriptionStore.directory(captionDirectory)
+    let damagedArchive = captionDirectory.appendingPathComponent(task.id + ".json")
+    try Data("{".utf8).write(to: damagedArchive)
+    let withDamagedLive = try TranscriptExportSnapshot.load(task.id, store: store, captions: LiveCaptionStore(directory: captionDirectory))
+    #expect(try withDamagedLive.markdown(primary: task.id + ":moss").contains("独立完好的主稿"))
+    #expect(try withDamagedLive.markdown(primary: task.id + ":moss", includeVersions: true).contains("实时归档不可读取"))
+    #expect(throws: TranscriptionFailure.self) { try withDamagedLive.markdown(primary: "live") }
+    #expect(try Data(contentsOf: damagedArchive) == Data("{".utf8))
 }
 
 @Test func markdownKeepsVersionsSourcesAndEscapesModelText() throws {
