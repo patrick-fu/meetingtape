@@ -57,7 +57,9 @@ struct TranscriptSection: View {
                     }
                 }
                 if let result {
-                    if result.partial { Text("部分结果，转写尚未完整完成").foregroundStyle(.orange).font(.system(size: 11)) }
+                    if !result.missingSources.isEmpty {
+                        Text(result.missingSources.map(\.name).joined(separator: "、") + "正文缺失，以下为可读取的部分结果").foregroundStyle(.orange).font(.system(size: 11))
+                    } else if result.partial { Text("部分结果，转写尚未完整完成").foregroundStyle(.orange).font(.system(size: 11)) }
                     if result.segments.isEmpty { Text(result.partial ? "暂无已识别文本" : "未识别到语音").foregroundStyle(.secondary).font(.system(size: 12)) }
                     ForEach(result.segments) { segment in
                         VStack(alignment: .leading, spacing: 11) {

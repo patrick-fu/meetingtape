@@ -54,11 +54,11 @@ final class LiveCaptionModel: ObservableObject {
 
     var sessionID: String? { snapshot?.sessionID }
     var anyEnabled: Bool { enabled || translationEnabled }
-    var latest: LiveCaptionSegment? { segments.last }
+    var latest: LiveCaptionSegment? { segments.max { $0.end == $1.end ? $0.start < $1.start : $0.end < $1.end } }
     var compactHeight: CGFloat { !anyEnabled ? 39 : enabled && translationEnabled ? (latest.map { $0.text.count + ($0.targetText?.count ?? 0) > 75 } == true ? 120 : 106) : 73 }
     var currentLine: String {
         guard anyEnabled else { return "" }
-        if let last = segments.last {
+        if let last = latest {
             if enabled, !last.text.isEmpty { return last.text }
             if let text = last.targetText { return text }
         }

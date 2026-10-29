@@ -28,14 +28,17 @@ private actor DelayedCaptionSession: LiveCaptionRunning {
     var simulateSourceFailure = false
     private var retryGate: CaptionGate?
     private var retryResult = true
+    private var update: (@Sendable (LiveCaptionArchive) async -> Void)?
 
     init(id: String, text: String, store: LiveCaptionStore) { self.id = id; self.text = text; self.store = store }
     func finish(_ value: SessionSnapshot) { finishing = true; Task { await stopGate.release() } }
     func cancel() { cancelled = true; Task { await stopGate.release() } }
     func failOneSource() { simulateSourceFailure = true }
     func delayRetry(_ gate: CaptionGate, result: Bool) { retryGate = gate; retryResult = result }
+    func publish(_ value: LiveCaptionArchive) async { await update?(value) }
     func retryFailed(at time: Double) async -> Bool { resumedAt = time; await retryGate?.wait(); return retryResult }
     func run(update: @escaping @Sendable (LiveCaptionArchive) async -> Void) async -> LiveCaptionArchive {
+        self.update = update
         started = true
         var document = (try? await store.load(id)) ?? LiveCaptionArchive(sessionID: id)
         loadedText = document.segments.map(\.text)
@@ -52,6 +55,47 @@ private actor DelayedCaptionSession: LiveCaptionRunning {
         try? await store.save(document)
         await update(document)
         return document
+    }
+}
+
+@Test @MainActor
+func compactCaptionFollowsLongSourceRevisionWithoutReorderingArchive() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("meetingtape-compact-source-\(UUID().uuidString)")
+    let prior = UserDefaults.standard.object(forKey: "liveTranslationEnabled")
+    defer {
+        try? FileManager.default.removeItem(at: root)
+        if let prior { UserDefaults.standard.set(prior, forKey: "liveTranslationEnabled") }
+        else { UserDefaults.standard.removeObject(forKey: "liveTranslationEnabled") }
+    }
+    let store = LiveCaptionStore(directory: root)
+    var snapshot = SessionSnapshot(recoveryPath: root.path)
+    snapshot.state = .recording; snapshot.recognitionMode = .separate
+    let service = DelayedCaptionSession(id: snapshot.sessionID, text: "夹具", store: store)
+    await service.archiveGate.release()
+    let model = LiveCaptionModel(enabled: true, store: store) { _, _, _ in service }
+    model.setTranslationEnabled(true)
+    do {
+        model.observe(snapshot, fromStart: true)
+        try await waitForCaption { model.currentLine == "夹具识别中" }
+        var document = LiveCaptionArchive(sessionID: snapshot.sessionID)
+        var system = LiveCaptionSegment(id: "system", start: 1, end: 2, text: "系统短句", final: false, source: .system)
+        document.segments = [system]; document.updateRevision = 1
+        await service.publish(document)
+        let microphone = LiveCaptionSegment(id: "microphone", start: 2, end: 3, text: "麦克风短句", final: true, source: .microphone, translation: CaptionTranslation(targetLanguage: "en", text: "Microphone", state: .translated, provider: "fixture"))
+        document.segments.append(microphone); document.updateRevision = 2
+        await service.publish(document)
+        #expect(model.currentLine == "麦克风短句")
+        system.end = 10; system.text = "仍在更新的系统长句"; system.revision = 1
+        system.translation = CaptionTranslation(targetLanguage: "en", text: "Ongoing system sentence", state: .translated, provider: "fixture")
+        document.segments[0] = system; document.updateRevision = 3
+        await service.publish(document)
+        #expect(model.currentLine == "仍在更新的系统长句")
+        #expect(model.latest?.source == .system)
+        #expect(model.translationLine == "Ongoing system sentence")
+        #expect(model.segments.map(\.source) == [.system, .microphone])
+        await model.shutdown()
+    } catch {
+        await model.shutdown(); throw error
     }
 }
 
