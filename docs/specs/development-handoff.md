@@ -18,7 +18,7 @@
 | 图标 | 以用户后续授权的 GPT Image 生成，采用已选定的黑白字幕气泡，资源接入最终 App | 保留请求模型及工具实际返回信息、真实 Dock/Finder/小尺寸及新旧系统所用资源；图片生成不代替资源替换验收 |
 | 脱敏与发行 | 私有备份、保留过滤后的有用历史、复扫；一个公证 DMG 提供 App 与完整 CLI | 隔离审计/过滤报告、回滚点、最终 SHA-256、实际下载/首次打开/授权/录音/BYOK/导出及包内资源消费 |
 
-首版为 `v0.1.0-beta.1`。项目自有代码 MIT，第三方保留许可/NOTICE。签名、公证与装订按[已核验的分发要求](https://github.com/patrick-fu/meetingtape/blob/ec5496c/docs/research/apple-distribution-checklist.md)实施。模型权重按用户设备与许可安装，不因打包方便盲目塞进发行包。
+首版为 `v0.1.0-beta.1`。项目自有代码 MIT，第三方保留许可/NOTICE。签名、公证与装订按[已核验的分发要求](https://github.com/patrick-fu/meetingtape/blob/a7d55aca149d913aa3804e51a1032b3325a7dc6d/docs/research/apple-distribution-checklist.md)实施。模型权重按用户设备与许可安装，不因打包方便盲目塞进发行包。
 
 ## 实现前已知风险
 
