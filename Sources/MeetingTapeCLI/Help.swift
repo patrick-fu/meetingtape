@@ -23,7 +23,7 @@ enum HelpText {
     static let start: String = """
         meetingtape start - begin a recording session
 
-        Usage: meetingtape start --out <directory> [--keep-raw]
+        Usage: meetingtape start --out <directory> [--keep-raw] [--json]
 
         Options:
           --out <directory>   Required, no default. Directory that receives the
@@ -31,6 +31,7 @@ enum HelpText {
                               writable; the CLI never creates it for you.
           --keep-raw          Also keep the raw microphone track as a separate
                               mono PCM CAF next to the main stereo file.
+          --json              Print the ready session snapshot as JSON.
           -h, --help          Show this help.
 
         Channel layout of the main file:
@@ -54,7 +55,10 @@ enum HelpText {
     static let stop: String = """
         meetingtape stop - stop the active recording session
 
-        Usage: meetingtape stop
+        Usage: meetingtape stop [--session <id>] [--json]
+
+        --json prints the completed session snapshot with final output paths.
+        --session refuses to stop a different session if another client started it.
 
         Exit codes:
           0  recording stopped and output files finalized
@@ -78,7 +82,9 @@ enum HelpText {
     static let recover: String = """
         meetingtape recover - finalize preserved recording materials
 
-        Usage: meetingtape recover <recovery-directory> --out <existing-directory>
+        Usage: meetingtape recover <recovery-directory> --out <existing-directory> [--json]
+
+        --json prints the completed session snapshot with final output paths.
 
         The destination must already exist and be writable. Recovery refuses an
         active writer and preserves materials if finalization fails.
