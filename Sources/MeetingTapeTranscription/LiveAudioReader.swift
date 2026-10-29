@@ -20,6 +20,7 @@ final class LiveAudioReader {
     }
 
     let sessionID: String
+    private let source: TranscriptSource
     private let directory: URL
     private var descriptor: Int32 = -1
     private var finalFile: AVAudioFile?
@@ -29,8 +30,9 @@ final class LiveAudioReader {
     private(set) var state: RecordingState = .recording
     var sealed: Bool { [.finalizing, .completed, .failed].contains(state) }
 
-    init(snapshot: SessionSnapshot, startFrame: Int64) {
+    init(snapshot: SessionSnapshot, startFrame: Int64, source: TranscriptSource = .merged) {
         sessionID = snapshot.sessionID
+        self.source = source
         directory = URL(fileURLWithPath: snapshot.recoveryPath)
         cursor = startFrame
     }
@@ -73,7 +75,7 @@ final class LiveAudioReader {
               value.audioFrames <= (Int64.max - 68) / 8,
               info.st_size >= 68 + value.audioFrames * 8 else { throw TranscriptionFailure("已提交音频长度不足，实时字幕已停止。") }
         let end = min(cursor + 9600, committedFrame)
-        var mixed = [Float](repeating: 0, count: Int(end - cursor))
+        var samples = [Float](repeating: 0, count: Int(end - cursor))
         var offset: Int64 = 0
         for span in value.spans {
             let beginning = max(cursor, span.startFrame)
@@ -86,7 +88,7 @@ final class LiveAudioReader {
                         let left = raw.loadUnaligned(fromByteOffset: index * 8, as: Float.self)
                         let right = raw.loadUnaligned(fromByteOffset: index * 8 + 4, as: Float.self)
                         guard left.isFinite, right.isFinite else { throw TranscriptionFailure("录音包含无效样本，实时字幕已停止。") }
-                        mixed[Int(beginning - cursor) + index] = max(-1, min(1, left * 0.5 + right * 0.5))
+                        samples[Int(beginning - cursor) + index] = selectedSample(left: left, right: right)
                     }
                 }
             }
@@ -94,7 +96,7 @@ final class LiveAudioReader {
             if span.startFrame + span.frameCount >= end { break }
         }
         cursor = end
-        return mixed
+        return samples
     }
 
     func readFinal(_ snapshot: SessionSnapshot) throws -> [Float]? {
@@ -105,17 +107,24 @@ final class LiveAudioReader {
         guard let file = finalFile, file.processingFormat.sampleRate == 48000, file.processingFormat.channelCount == 2,
               file.length >= target - 4096 else { throw TranscriptionFailure("无法读取录音尾部，已保留现有字幕。") }
         let count = Int(min(9600, target - cursor))
-        var mixed = [Float](repeating: 0, count: count)
+        var selected = [Float](repeating: 0, count: count)
         file.framePosition = min(cursor, file.length)
         let readable = AVAudioFrameCount(min(Int64(count), file.length - file.framePosition))
         if readable > 0 {
             guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: readable) else { throw TranscriptionFailure("无法分配字幕音频缓冲。") }
             try file.read(into: buffer, frameCount: readable)
-            guard let samples = buffer.floatChannelData?[0], buffer.frameLength == readable else { throw TranscriptionFailure("录音尾部读取不完整。") }
-            for index in 0..<Int(readable) { mixed[index] = max(-1, min(1, samples[index * 2] * 0.5 + samples[index * 2 + 1] * 0.5)) }
+            guard let interleaved = buffer.floatChannelData?[0], buffer.frameLength == readable else { throw TranscriptionFailure("录音尾部读取不完整。") }
+            for index in 0..<Int(readable) {
+                selected[index] = selectedSample(left: interleaved[index * 2], right: interleaved[index * 2 + 1])
+            }
         }
         cursor += Int64(count)
-        return mixed
+        return selected
+    }
+
+    private func selectedSample(left: Float, right: Float) -> Float {
+        let value = source.channel.map { $0 == 0 ? left : right } ?? (left * 0.5 + right * 0.5)
+        return max(-1, min(1, value))
     }
 
     private func read(offset: Int64, count: Int) throws -> Data {

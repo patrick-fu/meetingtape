@@ -31,8 +31,8 @@ final class RecordingPanel: NSPanel {
         if pinned && isVisible { orderFrontRegardless() }
     }
 
-    func resize(expanded: Bool) {
-        let size = NSSize(width: expanded ? 380 : 196, height: expanded ? 320 : 54)
+    func resize(expanded: Bool, compactHeight: CGFloat) {
+        let size = NSSize(width: expanded ? 380 : 196, height: expanded ? 320 : compactHeight)
         guard frame.size != size else { return }
         var origin = NSPoint(x: frame.maxX - size.width, y: frame.maxY - size.height)
         let visible = screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? frame
@@ -71,7 +71,7 @@ private struct RecordingPanelView: View {
         Group {
             if model.panelExpanded { expanded } else { compact }
         }
-        .frame(width: model.panelExpanded ? 380 : 196, height: model.panelExpanded ? 320 : 54)
+        .frame(width: model.panelExpanded ? 380 : 196, height: model.panelExpanded ? 320 : captions.compactHeight)
         .background(.background.opacity(0.97), in: RoundedRectangle(cornerRadius: model.panelExpanded ? 16 : 12))
         .overlay(RoundedRectangle(cornerRadius: model.panelExpanded ? 16 : 12).stroke(Color.primary.opacity(0.10), lineWidth: 0.7))
         .clipShape(RoundedRectangle(cornerRadius: model.panelExpanded ? 16 : 12))
@@ -94,12 +94,13 @@ private struct RecordingPanelView: View {
                 pinButton(size: 20)
                 resizeButton(expanded: true, size: 20)
             }.padding(.leading, 10).padding(.trailing, 7).padding(.top, 3).frame(height: 27)
-            Text(captions.currentLine)
-                .font(.system(size: 11)).lineLimit(1).truncationMode(.head)
-                .foregroundStyle(captions.segments.isEmpty ? .secondary : .primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10).padding(.bottom, 8).frame(height: 27)
-                .accessibilityLabel("实时字幕：" + captions.currentLine)
+            if captions.anyEnabled {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let latest = captions.latest { Text(latest.source.name).font(.system(size: 8)).foregroundStyle(.secondary) }
+                    if captions.enabled { Text(captions.currentLine).font(.system(size: 11)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading) }
+                    if captions.translationEnabled { Text(captions.translationLine).font(.system(size: 11)).lineLimit(2).foregroundStyle(.blue).frame(maxWidth: .infinity, alignment: .leading) }
+                }.padding(.horizontal, 10).padding(.top, 2).padding(.bottom, 4).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
         }
     }
 
@@ -126,7 +127,7 @@ private struct RecordingPanelView: View {
                     HStack(spacing: 7) {
                         Text(message).lineLimit(2)
                         Spacer(minLength: 2)
-                        if captions.enabled { Button("重连") { captions.retry() }.buttonStyle(.plain).disabled(!captions.canRetry).help("从当前录音位置重新连接字幕") }
+                        if captions.anyEnabled { Button("重连") { captions.retry() }.buttonStyle(.plain).disabled(!captions.canRetry).help("从当前录音位置重新连接字幕") }
                     }.font(.system(size: 10)).foregroundStyle(.orange).padding(.horizontal, 16).padding(.vertical, 6)
                 }
             }
@@ -134,6 +135,10 @@ private struct RecordingPanelView: View {
                 Text(recordingTime(elapsed)).font(.system(size: 12)).monospacedDigit().foregroundStyle(.secondary)
                 LiveWave(levels: Array(model.liveLevels.suffix(8))).frame(width: 40, height: 14).accessibilityLabel("录音电平")
                 Spacer(minLength: 0)
+                Button { captions.setEnabled(!captions.enabled) } label: { Image(systemName: "captions.bubble").foregroundStyle(captions.enabled ? Color.accentColor : .secondary) }
+                    .buttonStyle(.plain).accessibilityLabel(captions.enabled ? "关闭实时转写" : "开启实时转写").help("实时转写")
+                Button { captions.setTranslationEnabled(!captions.translationEnabled) } label: { Image(systemName: "translate").foregroundStyle(captions.translationEnabled ? Color.accentColor : .secondary) }
+                    .buttonStyle(.plain).accessibilityLabel(captions.translationEnabled ? "关闭字幕翻译" : "开启字幕翻译").help("字幕翻译")
                 Button { model.onOpenLibrary?() } label: { Image(systemName: "rectangle.split.2x1").frame(width: 24, height: 24) }
                     .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("打开资料库")
                 stopButton(size: 28)
@@ -148,17 +153,19 @@ private struct RecordingPanelView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     ForEach(captions.segments) { segment in
                         HStack(alignment: .top, spacing: 9) {
-                            Text(recordingTime(segment.start)).font(.system(size: 9)).monospacedDigit().foregroundStyle(.tertiary).frame(width: 30, alignment: .leading).padding(.top, 3)
-                            Text(segment.text).font(.system(size: segment.final ? 14 : 15)).foregroundStyle(segment.final ? .secondary : .primary).textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(recordingTime(segment.start)).monospacedDigit()
+                                Text(segment.source.name)
+                            }.font(.system(size: 8)).foregroundStyle(.tertiary).frame(width: 43, alignment: .leading).padding(.top, 3)
+                            CaptionTextView(segment: segment).frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                     if captions.segments.isEmpty {
-                        if captions.enabled {
+                        if captions.anyEnabled {
                             Text(captions.currentLine).font(.system(size: 12)).foregroundStyle(.secondary).padding(.top, 15)
                         }
                     }
-                    if !captions.enabled { Button("开启实时字幕") { captions.setEnabled(true) }.font(.system(size: 12)).padding(.top, 18) }
+                    if !captions.anyEnabled { Text("录音中").font(.system(size: 12)).foregroundStyle(.secondary).padding(.top, 18) }
                     Color.clear.frame(height: 1).id("latest")
                 }.padding(.horizontal, 16).padding(.top, 5).padding(.bottom, 8)
                     .background(ScrollReadingObserver(following: $following))

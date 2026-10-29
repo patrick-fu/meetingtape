@@ -50,6 +50,7 @@ public struct TranscriptionStore: Sendable {
         defer { withExtendedLifetime(lock) {} }
         var current = try settings()
         current.models = value.models; current.automatic = value.automatic; current.profile = value.profile
+        current.recognitionMode = value.recognitionMode
         try write(current, to: root.appendingPathComponent("settings.json"))
     }
     public func activate(_ installation: LocalInstallation) throws {
@@ -58,16 +59,56 @@ public struct TranscriptionStore: Sendable {
         var current = try settings(); current.installations[installation.family] = installation
         try write(current, to: root.appendingPathComponent("settings.json"))
     }
-    public func task(_ id: String) throws -> TranscriptionTask { try read(taskDirectory(id).appendingPathComponent("task.json")) }
+    public func task(_ id: String) throws -> TranscriptionTask {
+        let value: TranscriptionTask = try read(taskDirectory(id).appendingPathComponent("task.json"))
+        guard [1, 2].contains(value.schemaVersion), UUID(uuidString: value.id) == UUID(uuidString: id),
+              value.duration.isFinite, value.duration > 0, value.duration <= 5 * 3600,
+              !value.runs.isEmpty, Set(value.runs.map(\.model)).count == value.runs.count,
+              value.runs.allSatisfy({ Set($0.sources.map(\.source)) == Set(value.recognitionMode.sources) }) else {
+            throw TranscriptionFailure("转写任务版本或音源记录不兼容，原文件已保留。")
+        }
+        return value
+    }
     public func save(_ task: TranscriptionTask) throws { try write(task, to: taskDirectory(task.id).appendingPathComponent("task.json")) }
     public func tasks() throws -> [TranscriptionTask] {
         try FileManager.default.contentsOfDirectory(at: root.appendingPathComponent("tasks"), includingPropertiesForKeys: nil)
             .filter { UUID(uuidString: $0.lastPathComponent) != nil }
-            .compactMap { try? read($0.appendingPathComponent("task.json")) as TranscriptionTask }
-            .sorted { $0.createdAt > $1.createdAt }
+            .compactMap { try? task($0.lastPathComponent) }
+            .sorted { $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt > $1.createdAt }
     }
     public func result(_ task: String, model: TranscriptModel) throws -> TranscriptResult {
-        try read(taskDirectory(task).appendingPathComponent(model.rawValue + ".json"))
+        let snapshot = try self.task(task)
+        guard let run = snapshot.runs.first(where: { $0.model == model }) else { throw TranscriptionFailure("此任务没有所选模型。") }
+        var segments: [TranscriptSegment] = []
+        var unavailableSources: [TranscriptSource] = []
+        var found = false
+        for source in run.sources {
+            let full = try resultPath(task, model: model, source: source.source)
+            var unavailable = source.state == .succeeded && !FileManager.default.fileExists(atPath: full.path)
+            var loaded: TranscriptResult?
+            for partial in [false, true] {
+                let path = try resultPath(task, model: model, source: source.source, partial: partial)
+                guard FileManager.default.fileExists(atPath: path.path) else { continue }
+                do {
+                    let value: TranscriptResult = partial ? try (read(path) as LocalProgress).result : try read(path)
+                    guard value.model == model, value.revision == run.revision, Set(value.segments.map(\.id)).count == value.segments.count, value.segments.allSatisfy({
+                        $0.source == source.source && $0.start.isFinite && $0.end.isFinite && $0.start >= 0 && $0.end >= $0.start && $0.end <= snapshot.duration + 0.1
+                    }) else { throw TranscriptionFailure("转写正文与音源记录不匹配，原文件已保留。") }
+                    loaded = value; break
+                } catch { unavailable = true }
+            }
+            if unavailable { unavailableSources.append(source.source) }
+            if let loaded { found = true; segments.append(contentsOf: loaded.segments) }
+        }
+        guard found else { throw TranscriptionFailure("正文缺失或不可读取，原文件已保留。") }
+        segments.sort { $0.start == $1.start ? $0.id < $1.id : $0.start < $1.start }
+        return TranscriptResult(model: model, revision: run.revision, segments: segments, partial: run.state != .succeeded || !unavailableSources.isEmpty, unavailableSources: unavailableSources)
+    }
+    static func resultPrefix(_ model: TranscriptModel, source: TranscriptSource) -> String {
+        source == .merged ? model.rawValue : model.rawValue + "." + source.rawValue
+    }
+    func resultPath(_ task: String, model: TranscriptModel, source: TranscriptSource, partial: Bool = false) throws -> URL {
+        try taskDirectory(task).appendingPathComponent(Self.resultPrefix(model, source: source) + (partial ? ".partial.json" : ".json"))
     }
     public func write<T: Encodable>(_ value: T, to path: URL) throws {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]

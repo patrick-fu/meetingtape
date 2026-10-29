@@ -116,6 +116,7 @@ public final class RecordingSession: @unchecked Sendable {
             let recovery = URL(fileURLWithPath: configuration.outputDirectory, isDirectory: true)
                 .appendingPathComponent(".meetingtape-\(id).recovery", isDirectory: true)
             var initial = SessionSnapshot(sessionID: id, recoveryPath: recovery.path)
+            initial.recognitionMode = configuration.recognitionMode
             clock = SessionClock()
             do {
                 try FileManager.default.createDirectory(at: recovery, withIntermediateDirectories: false,
