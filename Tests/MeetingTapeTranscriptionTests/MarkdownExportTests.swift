@@ -2,6 +2,28 @@ import Foundation
 import Testing
 @testable import MeetingTapeTranscription
 
+@Test func exportPreservesReadableSourceAndReportsMissingSuccessfulSource() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("meetingtape-missing-source-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = try TranscriptionStore(root: root)
+    var run = TranscriptRun(model: .doubao, revision: "fixture", sources: [.system, .microphone])
+    run.sources[0].state = .succeeded; run.sources[1].state = .succeeded
+    let task = TranscriptionTask(schemaVersion: 2, id: UUID().uuidString.lowercased(), inputPath: "/fixture.m4a", inputSHA256: "fixture", duration: 12, createdAt: "2026-10-30T00:00:00Z", primaryModel: .doubao, runs: [run], recognitionMode: .separate, nativeSourceMapping: true)
+    try TranscriptionStore.directory(store.taskDirectory(task.id))
+    try store.save(task)
+    let result = TranscriptResult(model: .doubao, revision: "fixture", segments: [TranscriptSegment(id: 0, start: 1, end: 4, text: "可读取的系统原文", source: .system)])
+    try store.write(result, to: store.resultPath(task.id, model: .doubao, source: .system))
+    let before = try Data(contentsOf: store.taskDirectory(task.id).appendingPathComponent("task.json"))
+    let loaded = try store.result(task.id, model: .doubao)
+    let snapshot = try TranscriptExportSnapshot.load(task.id, store: store, captions: LiveCaptionStore(directory: root.appendingPathComponent("captions")))
+    let markdown = try snapshot.markdown(primary: task.id + ":doubao")
+    #expect(loaded.partial)
+    #expect(markdown.contains("可读取的系统原文"))
+    #expect(markdown.contains("麦克风：成功，正文缺失"))
+    #expect(markdown.contains("状态：部分正文"))
+    #expect(try Data(contentsOf: store.taskDirectory(task.id).appendingPathComponent("task.json")) == before)
+}
+
 @Test func markdownKeepsVersionsSourcesAndEscapesModelText() throws {
     var run = TranscriptRun(model: .qwen, revision: "fixture", sources: [.system, .microphone])
     run.sources[0].state = .succeeded; run.sources[1].state = .failed

@@ -48,6 +48,7 @@ public struct TranscriptResult: Codable, Sendable {
     public var revision: String
     public var segments: [TranscriptSegment]
     public var partial = false
+    public var missingSources: [TranscriptSource] = []
     public var text: String { segments.map(\.text).joined(separator: "\n") }
 }
 
@@ -187,13 +188,14 @@ extension TranscriptSegment {
 }
 
 extension TranscriptResult {
-    private enum CodingKeys: String, CodingKey { case model, revision, segments, partial }
+    private enum CodingKeys: String, CodingKey { case model, revision, segments, partial, missingSources }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         model = try c.decode(TranscriptModel.self, forKey: .model)
         revision = try c.decode(String.self, forKey: .revision)
         segments = try c.decode([TranscriptSegment].self, forKey: .segments)
         partial = try c.decodeIfPresent(Bool.self, forKey: .partial) ?? false
+        missingSources = try c.decodeIfPresent([TranscriptSource].self, forKey: .missingSources) ?? []
     }
 }
 

@@ -76,8 +76,9 @@ public struct TranscriptExportSnapshot: Sendable {
     private static func body(_ version: TranscriptExportVersion) -> [String] {
         var lines: [String] = []
         if let run = version.run {
-            lines += ["状态：\(state(run.state))", ""]
-            for source in run.sources { lines += ["- \(source.source.name)：\(state(source.state))"] }
+            let missing = version.result?.missingSources ?? []
+            lines += ["状态：\(missing.isEmpty ? state(run.state) : "部分正文")", ""]
+            for source in run.sources { lines += ["- \(source.source.name)：\(state(source.state))\(missing.contains(source.source) ? "，正文缺失" : "")"] }
             lines.append("")
             for segment in version.result?.segments ?? [] {
                 let precision = segment.precision == "chunk" ? " · 音频块时间" : ""
