@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a>
+  <a href="https://patrick-fu.github.io/meetingtape/">Website</a> · <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
 MeetingTape records system and microphone audio, follows the conversation through captions, and keeps every meeting in a searchable library. Return to any point with a click, or export the transcript as a clean Markdown document.

@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a>
+  <a href="https://patrick-fu.github.io/meetingtape/">官网</a> · <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
 MeetingTape 录制系统声音和麦克风，通过字幕让你跟随对话，并把每场会议收进可搜索的录音库。点击任意时间点即可回到原声，也可以把逐字稿导出成 Markdown 文档。
