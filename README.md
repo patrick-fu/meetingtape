@@ -7,7 +7,7 @@
 - 实时转写与字幕翻译分别开关。译文跟随原句修订，关闭或断线区间保留记录，不自动补传。
 - App 与 CLI 使用同一 Markdown 导出入口，可选择主稿、其他版本和实际运行观测。
 
-当前为 `v0.1.0-beta.1` 开发版，源码已公开，签名候选包已完成本地核对，尚未发布公证安装包。黑白字幕气泡图标已集成；云端翻译账户权限及发行验收仍待完成。[功能验收与限制](docs/feature-acceptance.md)记录了实际通过和未通过的路径。AEC、长录音及设备/睡眠等缺口见[本地验收](docs/local-verification.md)。
+已发布 [v0.1.0-beta.1 公证预发布](https://github.com/patrick-fu/meetingtape/releases/tag/v0.1.0-beta.1)，DMG 同时包含 App 和完整 CLI。黑白字幕气泡图标已集成；签名、公证、装订及匿名下载摘要验证通过。[功能验收与限制](docs/feature-acceptance.md)记录了实际通过和未通过的路径；豆包文字翻译权限、全新机器授权、字幕窗直接双语画面、AEC、长录音及设备/睡眠等缺口仍保留，见[本地验收](docs/local-verification.md)。
 
 ## 使用与数据
 
