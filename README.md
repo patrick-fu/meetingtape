@@ -28,4 +28,6 @@ swift test
 
 构建脚本校验固定版本的 WebRTC Audio Processing、Abseil 与包哈希。硬件验收按 `docs/local-verification.md` 执行；普通单元检查通过不等于麦克风、系统声音或音质验收通过。本地流程不依赖 CI。
 
+公证凭据按开发者团队复用，不需为每个 App 新建。打包脚本优先使用 `MEETINGTAPE_NOTARY_PROFILE`，其次使用通用的 `APPLE_NOTARY_PROFILE`；两者均未设置且本机安装了 `apple-notary` 时，自动读取它的共享钥匙串 profile。显式设置 `MEETINGTAPE_NOTARY_PROFILE=` 可只生成签名候选，不提交公证。凭据保存在 macOS 钥匙串，仓库不保存密码。
+
 项目自有代码使用 [MIT](LICENSE)。原生依赖许可保存在 `Resources/ThirdParty`，本地模型与 Python 包条款见 `Resources/Transcription/NOTICE.md`；模型权重不随 App 分发。
