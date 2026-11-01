@@ -1,6 +1,6 @@
 # Change Log
 
-## v0.1.0-beta.1（尚未发布）
+## v0.1.0-beta.1
 
 - 原生 macOS 录音和资料库；系统音频保留左声道，处理后的麦克风保留右声道，处理失败如实降级。
 - 默认分音源转写，可选择合并；Qwen、MOSS 与豆包各自保留正文、失败重试和运行观测。
@@ -12,4 +12,4 @@
 - 单路正文损坏时保留其他音源及可恢复的部分稿；缺失旧稿不再阻断独立完好主稿导出，并保留失败任务的状态记录。
 - 运行明细的总耗时计入各音源的排队时间；多路统计保持在同一张表中，资源测量范围另列说明。
 
-首版面向 Apple Silicon。发布仍受云端翻译权限验收、历史清理、公证与下载消费验收约束。AEC、长录音、设备/睡眠、最低系统实机及跨 Space/全屏缺口见 `docs/local-verification.md` 与 `docs/feature-acceptance.md`；预发布不代表这些检查通过。
+首版面向 Apple Silicon。Apple 本地文字翻译需要 macOS 26 与系统语言包；豆包文字翻译另需 `volc.speech.mt` 资源权限，当前测试账户尚未完成正向验收。AEC、长录音、设备/睡眠、最低系统实机及跨 Space/全屏缺口见 `docs/local-verification.md` 与 `docs/feature-acceptance.md`；预发布不代表这些检查通过。
