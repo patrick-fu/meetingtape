@@ -39,6 +39,7 @@ extern "C" meetingtape_apm *meetingtape_apm_create(void) {
             return nullptr;
         }
         webrtc::AudioProcessing::Config config;
+        config.pipeline.multi_channel_render = true;
         config.echo_canceller.enabled = true;
         config.noise_suppression.enabled = true;
         config.gain_controller1.enabled = false;
