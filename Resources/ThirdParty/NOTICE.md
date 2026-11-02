@@ -7,3 +7,5 @@ MeetingTape 静态链接 webrtc-audio-processing 2.1 及 Abseil 20240722.0；本
 - 内含第三方音频代码：PFFFT、RNNoise、FFT、SplSqrtFloor、Ooura 的许可各自保留。
 
 本地转写模型与 Python 包在安装时下载，不包含在原生二进制中；对应条款见另附的 `Transcription/NOTICE.md`，安装器保留模型随附许可。
+
+Sparkle 2.10.1 用于 macOS App 自动更新，保留其 MIT 及内含第三方许可，见 `Sparkle-LICENSE.txt`。二进制来自 Sparkle 官方发行，固定校验和见 `Package.swift`。
