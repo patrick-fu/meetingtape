@@ -32,6 +32,8 @@ final class AppModel: ObservableObject {
     @Published var playbackDuration = 0.0
     @Published var outputDirectory: String
     @Published var keepRaw: Bool
+    @Published var installingUpdate = false
+    private(set) var recordingStatusLoaded = false
     var onChange: (() -> Void)?
     var onOpenLibrary: (() -> Void)?
     var onShowRecordingPanel: (() -> Void)?
@@ -60,7 +62,16 @@ final class AppModel: ObservableObject {
         return [.starting, .recording, .interrupted, .stopping, .finalizing].contains(state)
     }
     var panelVisible: Bool { active || operation != nil || snapshot?.state == .failed }
-    var canStart: Bool { !active && operation == nil && snapshot?.state != .failed }
+    var canStart: Bool { !installingUpdate && !active && operation == nil && snapshot?.state != .failed }
+    var updateBusy: Bool { !recordingStatusLoaded || active || operation != nil || transcription.updateBusy }
+
+    func readyForUpdateExit() async -> Bool {
+        guard await transcription.refresh(), !updateBusy else { return false }
+        do {
+            let current = try await client.run(["status", "--json"])
+            return ![.starting, .recording, .interrupted, .stopping, .finalizing].contains(current?.state) && !updateBusy
+        } catch { return false }
+    }
     var canStop: Bool { active && operation == nil && snapshot?.state != .finalizing && snapshot?.state != .stopping }
     var selected: RecordingItem? { records.first { $0.id == selectedID } }
     var visibleRecords: [RecordingItem] {
@@ -140,6 +151,7 @@ final class AppModel: ObservableObject {
                 liveCaptions.observe(records.first { $0.snapshot.sessionID == previous.sessionID }?.snapshot)
             }
             snapshot = value
+            recordingStatusLoaded = true
             if value?.sessionID != previous?.sessionID, let value { activeTitle = defaultTitle(for: value) }
             if let value {
                 liveCaptions.observe(value)

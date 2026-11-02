@@ -10,6 +10,12 @@ final class TranscriptionModel: ObservableObject {
     @Published var results: [String: [TranscriptModel: TranscriptResult]] = [:]
     @Published var message: String?
     @Published var busy = false
+    @Published var updating = false
+    private(set) var stateLoaded = false
+    var updateBusy: Bool {
+        !stateLoaded || busy || tasks.contains { !$0.finished }
+            || inventory?.installations.contains { ["installing", "validating"].contains($0.state) } == true
+    }
     @Published var existingModels: [String: LocalInstallation] = [:]
     private let client = RecordingClient()
     private var polling = false
@@ -33,8 +39,8 @@ final class TranscriptionModel: ObservableObject {
         }
     }
 
-    func refresh() async {
-        guard !polling, !busy else { return }
+    @discardableResult func refresh() async -> Bool {
+        guard !polling, !busy else { return false }
         polling = true; defer { polling = false }
         do {
             let data = try await client.data(["transcribe", "list"])
@@ -51,7 +57,9 @@ final class TranscriptionModel: ObservableObject {
             }.value
             results = values
             inventory = try JSONDecoder().decode(TranscriptionInventory.self, from: await client.data(["transcribe", "models"]))
-        } catch { message = error.localizedDescription }
+            stateLoaded = true
+            return true
+        } catch { message = error.localizedDescription; return false }
     }
 
     func task(for path: String) -> TranscriptionTask? { tasks.first { URL(fileURLWithPath: $0.inputPath).resolvingSymlinksInPath().path == URL(fileURLWithPath: path).resolvingSymlinksInPath().path } }
@@ -66,6 +74,7 @@ final class TranscriptionModel: ObservableObject {
         perform(["transcribe", "install", model.rawValue, "--profile", profile] + (reuse ? ["--reuse"] : []) + (reuse ? existingRoot.map { ["--reuse-root", $0.path] } ?? [] : []))
     }
     func discoverExisting() {
+        guard !updating else { return }
         let panel = NSOpenPanel()
         panel.canChooseFiles = false; panel.canChooseDirectories = true; panel.allowsMultipleSelection = false
         panel.message = "选择已有模型的运行时文件夹（包含 active.json）"
@@ -92,7 +101,7 @@ final class TranscriptionModel: ObservableObject {
     func removeCredentials() { perform(["transcribe", "credentials", "remove"], success: "已移除钥匙串中的豆包凭据") }
 
     private func perform(_ arguments: [String], input: Data? = nil, success: String? = nil) {
-        guard !busy else { return }
+        guard !busy, !updating else { return }
         busy = true; message = nil
         Task {
             do { _ = try await client.data(arguments, input: input); message = success }

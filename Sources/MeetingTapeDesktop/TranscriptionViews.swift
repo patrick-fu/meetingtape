@@ -28,7 +28,7 @@ struct TranscriptSection: View {
                 }
                 Spacer(minLength: 0)
                 Button(task == nil ? "转写" : "重新转写") { transcription.start(item, models: selected) }
-                    .disabled(selected.isEmpty || transcription.busy || model.active || !item.exists || task?.finished == false)
+                    .disabled(selected.isEmpty || (transcription.busy || transcription.updating) || model.active || !item.exists || task?.finished == false)
             }
             if selected.contains(.doubao) { Text("本次会上传录音至豆包，使用你的账户计费。") .font(.system(size: 11)).foregroundStyle(.secondary) }
             if let message = transcription.message { Text(message).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled) }
@@ -52,7 +52,7 @@ struct TranscriptSection: View {
                         HStack(alignment: .top) {
                             Text("\(run.model.name) · \(source.source.name)：\(source.error ?? "转写未完成")").font(.system(size: 11)).foregroundStyle(.orange).textSelection(.enabled)
                             Spacer()
-                            Button("重试\(source.source.name)") { transcription.retry(task, model: run.model, source: source.source) }.font(.system(size: 11)).disabled(!task.finished || transcription.busy)
+                            Button("重试\(source.source.name)") { transcription.retry(task, model: run.model, source: source.source) }.font(.system(size: 11)).disabled(!task.finished || (transcription.busy || transcription.updating))
                         }
                     }
                 }
@@ -156,7 +156,7 @@ struct TranscriptionSettingsView: View {
                     }
                     Toggle("录完自动转写", isOn: $draft.automatic).font(.system(size: 12))
                     if draft.automatic && draft.models.contains(.doubao) { Text("开启后，新录音保存完成即上传至豆包并使用你的账户计费。") .font(.system(size: 11)).foregroundStyle(.orange) }
-                    Button("保存转写偏好") { model.save(draft) }.disabled(draft.models.isEmpty || model.busy)
+                    Button("保存转写偏好") { model.save(draft) }.disabled(draft.models.isEmpty || (model.busy || model.updating))
                 }
                 Divider()
                 VStack(alignment: .leading, spacing: 12) {
@@ -180,7 +180,7 @@ struct TranscriptionSettingsView: View {
                                     Button("使用已有模型") { model.install(family, profile: draft.profile, reuse: true) }.font(.system(size: 11))
                                 }
                                 Button(inventory.settings.installations[family.rawValue]?.available == true ? "安装所选版本" : "一键安装") { model.install(family, profile: draft.profile, reuse: false) }.font(.system(size: 11))
-                            }.disabled(!inventory.localSupported || model.busy || inventory.installations.contains { ["installing", "validating"].contains($0.state) })
+                            }.disabled(!inventory.localSupported || (model.busy || model.updating) || inventory.installations.contains { ["installing", "validating"].contains($0.state) })
                         }
                     }
                 }
@@ -198,7 +198,7 @@ struct TranscriptionSettingsView: View {
                         }.disabled(legacy ? appID.isEmpty || accessToken.isEmpty : apiKey.isEmpty)
                         Button("测试连接") { model.testConnection() }.disabled(model.inventory?.credentialConfigured != true)
                         if model.inventory?.credentialConfigured == true { Button("移除钥匙串凭据") { model.removeCredentials() } }
-                    }.font(.system(size: 11)).disabled(model.busy)
+                    }.font(.system(size: 11)).disabled((model.busy || model.updating))
                 }
                 if let message = model.message { Text(message).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled) }
                 if let error = model.inventory?.automaticError { Text("上次自动转写未启动：\(error)").font(.system(size: 11)).foregroundStyle(.orange) }

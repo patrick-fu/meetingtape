@@ -6,7 +6,7 @@ PROFILE="${MEETINGTAPE_NOTARY_PROFILE-${APPLE_NOTARY_PROFILE-}}"
 if [[ -z "${MEETINGTAPE_NOTARY_PROFILE+x}" && -z "${APPLE_NOTARY_PROFILE+x}" ]] && command -v apple-notary >/dev/null 2>&1; then
     PROFILE="$(apple-notary profile)"
 fi
-if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
     echo "Usage: scripts/package-release.sh <version>; uses the shared Apple notary profile, with MEETINGTAPE_NOTARY_PROFILE as an override (empty for a signed candidate only)." >&2
     exit 1
 fi
@@ -71,4 +71,5 @@ FINAL="$OUTPUT/MeetingTape-$VERSION-arm64.dmg"
 mv "$DMG" "$FINAL"
 (cd "$OUTPUT" && shasum -a 256 "$(basename "$FINAL")" > SHA256SUMS.txt)
 echo "Notarized and stapled container: $FINAL"
+echo "Generate the signed update feed: python3 scripts/update-appcast.py $VERSION"
 echo "Download and first-launch acceptance is still required before publishing."

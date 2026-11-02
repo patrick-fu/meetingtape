@@ -22,6 +22,7 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
     private var recordMenuItem: NSMenuItem!
     private var panelMenuItem: NSMenuItem!
     private var terminationPending = false
+    private lazy var updater = AppUpdater(model: model)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 730), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
@@ -71,6 +72,7 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateWindows() {
+        updater.updateState()
         recordingPanel.resize(expanded: model.panelExpanded, compactHeight: model.liveCaptions.compactHeight)
         recordingPanel.setPinned(model.panelPinned)
         if model.panelVisible {
@@ -89,6 +91,11 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if terminationPending { return .terminateCancel }
+        if updater.installationPending && model.updateBusy {
+            updater.cancelTerminationWhileBusy()
+            model.errorMessage = "更新已准备就绪，当前录音或任务完成后即可退出并安装。"
+            return .terminateCancel
+        }
         if model.operation != nil || model.snapshot?.state == .finalizing || model.snapshot?.state == .stopping {
             let alert = NSAlert()
             alert.messageText = model.statusText
@@ -119,7 +126,13 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
             }
         }
         terminationPending = true
-        Task { await model.flush(); sender.reply(toApplicationShouldTerminate: true) }
+        Task {
+            await model.flush()
+            var ready = true
+            if updater.installationPending { ready = await model.readyForUpdateExit() }
+            if !ready { updater.cancelTerminationWhileBusy(); terminationPending = false }
+            sender.reply(toApplicationShouldTerminate: ready)
+        }
         return .terminateLater
     }
 
@@ -127,6 +140,8 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
         let main = NSMenu()
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "关于 MeetingTape", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: "检查更新…", action: #selector(AppUpdater.checkForUpdates(_:)), keyEquivalent: "").target = updater
+        appMenu.addItem(withTitle: "自动更新", action: #selector(AppUpdater.toggleAutomaticUpdates(_:)), keyEquivalent: "").target = updater
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "退出 MeetingTape", action: #selector(quit), keyEquivalent: "q").target = self
         let root = NSMenuItem(); root.submenu = appMenu; main.addItem(root)
