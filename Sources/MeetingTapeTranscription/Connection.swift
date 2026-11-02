@@ -2,8 +2,9 @@ import AVFoundation
 import Foundation
 
 public enum TranscriptionConnection {
-    public static func test() throws {
-        let credential = try TranscriptionCredentials.load()
+    public static func test(credential: DoubaoCredential? = nil) throws {
+        let credential = try credential ?? TranscriptionCredentials.load()
+        guard credential.valid else { throw TranscriptionFailure("请输入 API Key，或完整的 App ID 与 Access Token。") }
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("meetingtape-connection-\(UUID().uuidString).wav")
         defer { try? FileManager.default.removeItem(at: temporary) }
         guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true),

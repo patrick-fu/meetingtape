@@ -17,6 +17,7 @@ struct DesktopMain {
 final class DesktopDelegate: NSObject, NSApplicationDelegate {
     private let model = AppModel()
     private var libraryWindow: NSWindow!
+    private var settingsWindow: NSWindow?
     private var recordingPanel: RecordingPanel!
     private var statusItem: NSStatusItem!
     private var recordMenuItem: NSMenuItem!
@@ -25,6 +26,7 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
     private lazy var updater = AppUpdater(model: model)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppAppearance.saved.apply()
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 730), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "MeetingTape"
         window.minSize = NSSize(width: 820, height: 600)
@@ -45,12 +47,15 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
         panelMenuItem = statusMenu.addItem(withTitle: "显示录音悬浮窗", action: #selector(showRecordingPanel), keyEquivalent: "")
         panelMenuItem.target = self
         statusMenu.addItem(.separator())
+        statusMenu.addItem(withTitle: "设置…", action: #selector(showSettings), keyEquivalent: "").target = self
+        statusMenu.addItem(.separator())
         statusMenu.addItem(withTitle: "退出 MeetingTape", action: #selector(quit), keyEquivalent: "").target = self
         statusItem.menu = statusMenu
         model.onChange = { [weak self] in self?.updateWindows() }
         model.liveCaptions.onResize = { [weak self] in self?.updateWindows() }
         model.onOpenLibrary = { [weak self] in self?.showLibrary() }
         model.onShowRecordingPanel = { [weak self] in self?.showRecordingPanel() }
+        model.onOpenSettings = { [weak self] in self?.showSettings() }
         configureMenu()
         updateWindows()
         showLibrary()
@@ -69,6 +74,22 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
     @objc private func showRecordingPanel() {
         guard model.panelVisible else { return }
         recordingPanel.orderFrontRegardless()
+    }
+
+    @objc private func showSettings() {
+        if settingsWindow == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 710), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            window.title = "设置"
+            window.titlebarAppearsTransparent = true
+            window.minSize = NSSize(width: 800, height: 600)
+            window.isReleasedWhenClosed = false
+            window.setFrameAutosaveName("MeetingTapeSettings")
+            window.contentView = NSHostingView(rootView: SettingsView(model: model, updater: updater))
+            window.center()
+            settingsWindow = window
+        }
+        settingsWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func updateWindows() {
@@ -140,6 +161,8 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
         let main = NSMenu()
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "关于 MeetingTape", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: "设置…", action: #selector(showSettings), keyEquivalent: ",").target = self
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "检查更新…", action: #selector(AppUpdater.checkForUpdates(_:)), keyEquivalent: "").target = updater
         appMenu.addItem(withTitle: "自动更新", action: #selector(AppUpdater.toggleAutomaticUpdates(_:)), keyEquivalent: "").target = updater
         appMenu.addItem(.separator())
@@ -155,6 +178,8 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
         let windows = NSMenu(title: "窗口")
         windows.addItem(withTitle: "资料库", action: #selector(showLibrary), keyEquivalent: "1").target = self
         windows.addItem(withTitle: "录音悬浮窗", action: #selector(showRecordingPanel), keyEquivalent: "2").target = self
+        windows.addItem(withTitle: "设置", action: #selector(showSettings), keyEquivalent: "3").target = self
+        windows.addItem(withTitle: "关闭窗口", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         windows.addItem(withTitle: "最小化", action: #selector(NSWindow.miniaturize(_:)), keyEquivalent: "m")
         let windowRoot = NSMenuItem(); windowRoot.submenu = windows; main.addItem(windowRoot)
         NSApp.mainMenu = main; NSApp.windowsMenu = windows

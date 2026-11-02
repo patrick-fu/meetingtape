@@ -11,6 +11,7 @@ final class TranscriptionModel: ObservableObject {
     @Published var message: String?
     @Published var busy = false
     @Published var updating = false
+    @Published private(set) var fileConnectionVerified = false
     private(set) var stateLoaded = false
     var updateBusy: Bool {
         !stateLoaded || busy || tasks.contains { !$0.finished }
@@ -19,6 +20,8 @@ final class TranscriptionModel: ObservableObject {
     @Published var existingModels: [String: LocalInstallation] = [:]
     private let client = RecordingClient()
     private var polling = false
+    private var pollingWaiters: [CheckedContinuation<Void, Never>] = []
+    private var operationRevision = 0
     private var timer: Task<Void, Never>?
     private var existingRoot: URL?
 
@@ -39,12 +42,18 @@ final class TranscriptionModel: ObservableObject {
         }
     }
 
-    @discardableResult func refresh() async -> Bool {
-        guard !polling, !busy else { return false }
-        polling = true; defer { polling = false }
+    @discardableResult func refresh(duringOperation: Bool = false) async -> Bool {
+        guard !polling, !busy || duringOperation else { return false }
+        polling = true
+        defer {
+            polling = false
+            let waiters = pollingWaiters; pollingWaiters.removeAll()
+            for waiter in waiters { waiter.resume() }
+        }
+        let revision = operationRevision
         do {
             let data = try await client.data(["transcribe", "list"])
-            tasks = try JSONDecoder().decode([TranscriptionTask].self, from: data)
+            let tasks = try JSONDecoder().decode([TranscriptionTask].self, from: data)
             var values: [String: [TranscriptModel: TranscriptResult]] = [:]
             let snapshots = tasks
             values = await Task.detached {
@@ -55,11 +64,15 @@ final class TranscriptionModel: ObservableObject {
                 } }
                 return result
             }.value
-            results = values
-            inventory = try JSONDecoder().decode(TranscriptionInventory.self, from: await client.data(["transcribe", "models"]))
+            let inventory = try JSONDecoder().decode(TranscriptionInventory.self, from: await client.data(["transcribe", "models"]))
+            guard revision == operationRevision else { return false }
+            self.tasks = tasks; results = values; self.inventory = inventory
             stateLoaded = true
             return true
-        } catch { message = error.localizedDescription; return false }
+        } catch {
+            if revision == operationRevision { message = error.localizedDescription }
+            return false
+        }
     }
 
     func task(for path: String) -> TranscriptionTask? { tasks.first { URL(fileURLWithPath: $0.inputPath).resolvingSymlinksInPath().path == URL(fileURLWithPath: path).resolvingSymlinksInPath().path } }
@@ -95,18 +108,52 @@ final class TranscriptionModel: ObservableObject {
             } catch { message = error.localizedDescription }
         }
     }
-    func save(_ settings: TranscriptionSettings) { perform(["transcribe", "settings", "--save-stdin"], input: try? JSONEncoder().encode(settings), success: "转写偏好已保存") }
-    func credentials(_ credential: DoubaoCredential) { perform(["transcribe", "credentials", "save-stdin"], input: try? JSONEncoder().encode(credential), success: "凭据已保存到钥匙串") }
-    func testConnection() { perform(["transcribe", "credentials", "test"], success: "豆包已接受测试请求") }
-    func removeCredentials() { perform(["transcribe", "credentials", "remove"], success: "已移除钥匙串中的豆包凭据") }
+    func save(_ settings: TranscriptionSettings, completion: @escaping (Bool) -> Void) {
+        perform(["transcribe", "settings", "--save-stdin"], input: try? JSONEncoder().encode(settings), success: "转写偏好已保存", completion: completion)
+    }
 
-    private func perform(_ arguments: [String], input: Data? = nil, success: String? = nil) {
-        guard !busy, !updating else { return }
+    func connect(_ credential: DoubaoCredential, completion: @escaping (Bool) -> Void) {
+        guard !busy, !updating else { completion(false); return }
+        operationRevision += 1
         busy = true; message = nil
         Task {
-            do { _ = try await client.data(arguments, input: input); message = success }
-            catch { message = error.localizedDescription }
-            busy = false; await refresh()
+            var saved = false
+            do {
+                let input = try JSONEncoder().encode(credential)
+                _ = try await client.data(["transcribe", "credentials", "test-stdin"], input: input)
+                _ = try await client.data(["transcribe", "credentials", "save-stdin"], input: input)
+                fileConnectionVerified = true; saved = true
+                message = "文件转写连接已验证，凭据已保存到钥匙串。"
+            } catch { message = error.localizedDescription }
+            await refreshAfterOperation(); completion(saved); busy = false
         }
+    }
+
+    func testConnection() {
+        perform(["transcribe", "credentials", "test"], success: "文件转写连接已验证。实时转写与翻译需分别开通。") { [weak self] passed in self?.fileConnectionVerified = passed }
+    }
+    func removeCredentials() {
+        perform(["transcribe", "credentials", "remove"], success: "已移除钥匙串中的豆包凭据") { [weak self] removed in
+            if removed { self?.fileConnectionVerified = false }
+        }
+    }
+
+    private func perform(_ arguments: [String], input: Data? = nil, success: String? = nil, completion: ((Bool) -> Void)? = nil) {
+        guard !busy, !updating else { completion?(false); return }
+        operationRevision += 1
+        busy = true; message = nil
+        Task {
+            var passed = false
+            do { _ = try await client.data(arguments, input: input); message = success; passed = true }
+            catch { message = error.localizedDescription }
+            await refreshAfterOperation()
+            completion?(passed)
+            busy = false
+        }
+    }
+
+    private func refreshAfterOperation() async {
+        if polling { await withCheckedContinuation { pollingWaiters.append($0) } }
+        await refresh(duringOperation: true)
     }
 }
