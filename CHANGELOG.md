@@ -1,5 +1,27 @@
 # Change Log
 
+## v0.2.0 — 2026-11-03
+
+### English
+
+- Add an independent global settings window. Open it from the library, menu bar, or ⌘, and navigate General, Recording, Models, Live Captions, Storage & Export, and About.
+- Group live-transcription setup, default post-recording models, and subtitle translation by purpose. Keep independent transcripts from multiple post-recording models and choose a primary transcript.
+- Manage Doubao BYOK connections, installed local models, recommended model versions, and translation language packs in one place. A replacement key is tested before it is saved to Keychain; a failed test leaves the existing key unchanged.
+- Add light, dark, and system appearance options, plus a default for including other transcript versions in Markdown exports. Recording, caption, and update preferences use the existing app services.
+- Fix pending preference edits being lost during background refresh, and allow an unavailable model to be removed from a multi-model selection while keeping at least one model selected.
+
+Apple Silicon, macOS 14.2 or later. Apple local text translation requires macOS 26 and installed language packs. The connection test checks file-transcription request acceptance; live transcription and text translation need their own service permissions. Existing audio, device, sleep, first-run permission, and window-coverage limitations remain documented in the acceptance records.
+
+### 中文
+
+- 新增独立全局设置窗，可从资料库、菜单栏或 ⌘, 打开，统一管理通用、录音、模型、实时字幕、存储与导出、关于。
+- 按用途管理实时转写设置、录后默认模型和字幕翻译；录后支持多模型对照及主稿优先顺序。
+- 集中管理豆包 BYOK、本地已安装模型、推荐版本和翻译语言包。更新 Key 时先测试再存入钥匙串，测试失败保留原凭据。
+- 支持浅色、深色和跟随系统外观；新增 Markdown 默认附加其他稿件版本的选项，录音、字幕和更新偏好接入现有功能。
+- 修复后台刷新可能丢失未保存编辑的问题；支持从多选中移除不可用模型，同时保留至少一个所选模型。
+
+支持 Apple Silicon、macOS 14.2 及以上。Apple 本地文字翻译需要 macOS 26 和已安装的语言包。连接测试只验证文件转写请求被接受，实时转写与文字翻译需分别开通服务。音频、设备、睡眠、首次权限及窗口场景的既有验证边界继续见验收记录。
+
 ## v0.1.0
 
 - 新增 Sparkle 自动更新：后台检查与下载，在正常退出时安装；菜单提供检查更新与自动更新开关。
