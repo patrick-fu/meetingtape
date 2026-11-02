@@ -21,7 +21,7 @@ private struct TranscriptExportView: View {
     let initialPrimary: String
     @State private var versions: [TranscriptExportVersion] = []
     @State private var primary = ""
-    @State private var includeVersions = false
+    @State private var includeVersions = UserDefaults.standard.bool(forKey: "exportIncludesVersions")
     @State private var message: String?
     @State private var busy = false
 

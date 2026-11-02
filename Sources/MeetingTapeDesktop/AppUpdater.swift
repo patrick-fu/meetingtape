@@ -1,8 +1,9 @@
 import AppKit
+import Combine
 import Sparkle
 
 @MainActor
-final class AppUpdater: NSObject, SPUUpdaterDelegate, NSMenuItemValidation {
+final class AppUpdater: NSObject, ObservableObject, SPUUpdaterDelegate, NSMenuItemValidation {
     private let model: AppModel
     private lazy var controller = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: self, userDriverDelegate: nil)
     private var started = false
@@ -10,10 +11,20 @@ final class AppUpdater: NSObject, SPUUpdaterDelegate, NSMenuItemValidation {
     private var invokingInstall = false
     private var updateOnQuitReady = false
     private(set) var installationPending = false
+    @Published private(set) var automaticallyUpdates = true
+    @Published private(set) var canCheck = false
+    @Published private(set) var available = false
 
     init(model: AppModel) { self.model = model }
 
     func updateState() {
+        defer {
+            let enabled = started && controller.updater.automaticallyChecksForUpdates && controller.updater.automaticallyDownloadsUpdates
+            if automaticallyUpdates != enabled { automaticallyUpdates = enabled }
+            let canCheck = started && !model.updateBusy && controller.updater.canCheckForUpdates
+            if self.canCheck != canCheck { self.canCheck = canCheck }
+            if available != started { available = started }
+        }
         guard !model.updateBusy else { return }
         if !started { started = true; controller.startUpdater() }
         if let installHandler, !invokingInstall {
@@ -27,8 +38,14 @@ final class AppUpdater: NSObject, SPUUpdaterDelegate, NSMenuItemValidation {
 
     @objc func toggleAutomaticUpdates(_ sender: Any?) {
         let enabled = !controller.updater.automaticallyChecksForUpdates
+        setAutomaticUpdates(enabled)
+    }
+
+    func setAutomaticUpdates(_ enabled: Bool) {
+        guard started else { return }
         controller.updater.automaticallyDownloadsUpdates = enabled
         controller.updater.automaticallyChecksForUpdates = enabled
+        automaticallyUpdates = enabled
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {

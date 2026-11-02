@@ -3,7 +3,6 @@ import MeetingTapeTranscription
 
 struct LibraryView: View {
     @ObservedObject var model: AppModel
-    @State private var settings = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -44,7 +43,6 @@ struct LibraryView: View {
             }.background(Color(nsColor: .textBackgroundColor))
         }
         .frame(minWidth: 800, minHeight: 540)
-        .sheet(isPresented: $settings) { SettingsView(model: model) { settings = false } }
         .environmentObject(model.transcription)
     }
 
@@ -62,7 +60,7 @@ struct LibraryView: View {
                 }.font(.system(size: 12, weight: .medium)).padding(.horizontal, 13).padding(.vertical, 8)
                     .background(model.active ? Color.primary.opacity(0.05) : Color.accentColor).foregroundStyle(model.active ? Color.primary : .white).clipShape(RoundedRectangle(cornerRadius: 8))
             }.buttonStyle(.plain).disabled(model.operation != nil || model.snapshot?.state == .failed)
-            Button { settings = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 28, height: 30) }.buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("录音设置")
+            Button { model.onOpenSettings?() } label: { Image(systemName: "slider.horizontal.3").frame(width: 28, height: 30) }.buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("设置")
         }.padding(.horizontal, 24).frame(height: 58)
     }
 
@@ -239,26 +237,5 @@ struct RecordedWave: View {
                 context.fill(Path(roundedRect: rect, cornerRadius: 1.5), with: .color(color))
             }
         }.accessibilityLabel("录音波形")
-    }
-}
-
-struct SettingsView: View {
-    @ObservedObject var model: AppModel
-    var dismiss: () -> Void
-    @State private var tab = 0
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("设置").font(.system(size: 20, weight: .semibold))
-            Picker("设置分类", selection: $tab) { Text("录音").tag(0); Text("转写与模型").tag(1) }.pickerStyle(.segmented)
-            if tab == 0 {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("保存位置").font(.system(size: 12)).foregroundStyle(.secondary)
-                HStack { Text(model.outputDirectory).font(.system(size: 12)).lineLimit(2).textSelection(.enabled); Spacer(); Button("更改") { model.chooseDirectory() } }.disabled(model.active || model.operation != nil)
-            }
-            Toggle("保留原始麦克风音轨", isOn: Binding(get: { model.keepRaw }, set: { model.setKeepRaw($0) })).toggleStyle(.switch).controlSize(.small).disabled(model.active || model.operation != nil)
-            if model.retainedRecoveryPath != nil { Button("查看上次恢复材料") { model.revealRecovery() }.font(.system(size: 11)) }
-            } else { TranscriptionSettingsView(captions: model.liveCaptions).environmentObject(model.transcription) }
-            HStack { Spacer(); Button("完成", action: dismiss).keyboardShortcut(.defaultAction) }
-        }.padding(27).frame(width: tab == 0 ? 500 : 600)
     }
 }

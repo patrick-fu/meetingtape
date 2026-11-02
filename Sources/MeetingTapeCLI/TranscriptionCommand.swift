@@ -8,7 +8,7 @@ enum TranscriptionCommand {
     meetingtape transcribe models [--existing|--existing-root <runtime-directory>]
     meetingtape transcribe settings [--save-stdin]
     meetingtape transcribe install <qwen|moss> [--profile low-memory|standard] [--reuse] [--reuse-root <runtime-directory>]
-    meetingtape transcribe credentials <status|save-stdin|remove|test>
+    meetingtape transcribe credentials <status|save-stdin|remove|test|test-stdin>
     meetingtape transcribe start <saved-audio> [--models qwen,moss,doubao] [--mode separate|merged] [--allow-cloud]
     meetingtape transcribe list
     meetingtape transcribe status <task-id>
@@ -58,7 +58,8 @@ enum TranscriptionCommand {
                 case "save-stdin": try TranscriptionCredentials.save(JSONDecoder().decode(DoubaoCredential.self, from: input())); return try json(["configured": true])
                 case "remove": try TranscriptionCredentials.remove(); return try json(["configured": TranscriptionCredentials.configured()])
                 case "test": try TranscriptionConnection.test(); return try json(["accepted": true])
-                default: throw TranscriptionFailure("Use credentials status|save-stdin|remove|test.")
+                case "test-stdin": try TranscriptionConnection.test(credential: JSONDecoder().decode(DoubaoCredential.self, from: input())); return try json(["accepted": true])
+                default: throw TranscriptionFailure("Use credentials status|save-stdin|remove|test|test-stdin.")
                 }
             case "list": return try json(store.tasks().map { TaskResponse(task: (try? TranscriptionManager.status($0.id)) ?? $0) })
             case "start":

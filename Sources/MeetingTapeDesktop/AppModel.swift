@@ -37,6 +37,7 @@ final class AppModel: ObservableObject {
     var onChange: (() -> Void)?
     var onOpenLibrary: (() -> Void)?
     var onShowRecordingPanel: (() -> Void)?
+    var onOpenSettings: (() -> Void)?
     private let client = RecordingClient()
     let transcription = TranscriptionModel()
     let liveCaptions = LiveCaptionModel()
