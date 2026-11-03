@@ -1,53 +1,49 @@
 # Change Log
 
+## v0.2.3 — 2026-11-03
+
+- Reduce runaway repetition in local Qwen transcription with a mild repetition penalty and a generation budget based on audio duration.\
+  为本地 Qwen 转写加入轻度重复惩罚，并按音频时长限制生成长度，减少异常复读。
+- Report an error when Qwen exhausts its generation budget, preserve completed chunks and diagnostics, and let you retry from the unfinished chunk.\
+  Qwen 耗尽生成额度时明确报错，保留已完成分块与诊断信息，可从未完成的音频块继续重试。
+
 ## v0.2.2 — 2026-11-03
 
-### English
-
-- Blend the library and Settings title bars into their content in dark mode, matching the unified appearance in light mode. Keep native window controls and content spacing when switching appearance or reopening windows.
-
-### 中文
-
-- 修复资料库与设置窗在深色模式下顶部色带分割的问题，标题栏与正文融合，浅色外观保持一致。切换外观、关闭重开时保留原生窗口按钮和正文间距。
+- Blend the library and Settings title bars into their content in dark mode, matching the unified appearance in light mode. Keep native window controls and content spacing when switching appearance or reopening windows.\
+  修复资料库与设置窗在深色模式下顶部色带分割的问题，标题栏与正文融合，浅色外观保持一致。切换外观、关闭重开时保留原生窗口按钮和正文间距。
 
 ## v0.2.1 — 2026-11-03
 
-### English
+- Fix recording startup failing when microphone preparation is slow, including Bluetooth format changes. Audio enters the recording queues after both devices are prepared; preparation time is excluded from the recording start.\
+  修复麦克风准备较慢时录音启动溢出的问题，涵盖蓝牙格式切换触发的等待。两路设备准备完成后再接收音频，准备耗时不再计入录音起点。
 
-- Fix recording startup failing when microphone preparation is slow, including Bluetooth format changes. Audio enters the recording queues after both devices are prepared; preparation time is excluded from the recording start.
-- Keep the same receiving sequence when capture restarts after sleep, and re-enable replacement streams during device recovery.
-- Hide “Recover Recording” when the committed recovery timeline is empty. Keep the original recording failure visible if a recovery attempt fails, and preserve the recovery materials.
+- Keep the same receiving sequence when capture restarts after sleep, and re-enable replacement streams during device recovery.\
+  睡眠后重新启动采集沿用同一接收顺序，设备重建后的音源继续开启接收。
 
-Runtime device switching, physical sleep/wake, and existing audio-quality and hardware acceptance gaps remain tracked separately. No change to transcription providers or credential storage.
+- Hide “Recover Recording” when the committed recovery timeline is empty. Keep the original recording failure visible if a recovery attempt fails, and preserve the recovery materials.\
+  已提交恢复时间线为空时隐藏“恢复录音”；恢复失败时保留最初录音错误，恢复材料继续留存。
 
-### 中文
-
-- 修复麦克风准备较慢时录音启动溢出的问题，涵盖蓝牙格式切换触发的等待。两路设备准备完成后再接收音频，准备耗时不再计入录音起点。
-- 睡眠后重新启动采集沿用同一接收顺序，设备重建后的音源继续开启接收。
-- 已提交恢复时间线为空时隐藏“恢复录音”；恢复失败时保留最初录音错误，恢复材料继续留存。
-
+Runtime device switching, physical sleep/wake, and existing audio-quality and hardware acceptance gaps remain tracked separately. No change to transcription providers or credential storage.\
 运行中设备切换、物理睡眠唤醒及既有音质和硬件验收缺口继续单独跟踪。转写服务与凭据存储保持原有行为。
 
 ## v0.2.0 — 2026-11-03
 
-### English
+- Add an independent global settings window. Open it from the library, menu bar, or ⌘, and navigate General, Recording, Models, Live Captions, Storage & Export, and About.\
+  新增独立全局设置窗，可从资料库、菜单栏或 ⌘, 打开，统一管理通用、录音、模型、实时字幕、存储与导出、关于。
 
-- Add an independent global settings window. Open it from the library, menu bar, or ⌘, and navigate General, Recording, Models, Live Captions, Storage & Export, and About.
-- Group live-transcription setup, default post-recording models, and subtitle translation by purpose. Keep independent transcripts from multiple post-recording models and choose a primary transcript.
-- Manage Doubao BYOK connections, installed local models, recommended model versions, and translation language packs in one place. A replacement key is tested before it is saved to Keychain; a failed test leaves the existing key unchanged.
-- Add light, dark, and system appearance options, plus a default for including other transcript versions in Markdown exports. Recording, caption, and update preferences use the existing app services.
-- Fix pending preference edits being lost during background refresh, and allow an unavailable model to be removed from a multi-model selection while keeping at least one model selected.
+- Group live-transcription setup, default post-recording models, and subtitle translation by purpose. Keep independent transcripts from multiple post-recording models and choose a primary transcript.\
+  按用途管理实时转写设置、录后默认模型和字幕翻译；录后支持多模型对照及主稿优先顺序。
 
-Apple Silicon, macOS 14.2 or later. Apple local text translation requires macOS 26 and installed language packs. The connection test checks file-transcription request acceptance; live transcription and text translation need their own service permissions. Existing audio, device, sleep, first-run permission, and window-coverage limitations remain documented in the acceptance records.
+- Manage Doubao BYOK connections, installed local models, recommended model versions, and translation language packs in one place. A replacement key is tested before it is saved to Keychain; a failed test leaves the existing key unchanged.\
+  集中管理豆包 BYOK、本地已安装模型、推荐版本和翻译语言包。更新 Key 时先测试再存入钥匙串，测试失败保留原凭据。
 
-### 中文
+- Add light, dark, and system appearance options, plus a default for including other transcript versions in Markdown exports. Recording, caption, and update preferences use the existing app services.\
+  支持浅色、深色和跟随系统外观；新增 Markdown 默认附加其他稿件版本的选项，录音、字幕和更新偏好接入现有功能。
 
-- 新增独立全局设置窗，可从资料库、菜单栏或 ⌘, 打开，统一管理通用、录音、模型、实时字幕、存储与导出、关于。
-- 按用途管理实时转写设置、录后默认模型和字幕翻译；录后支持多模型对照及主稿优先顺序。
-- 集中管理豆包 BYOK、本地已安装模型、推荐版本和翻译语言包。更新 Key 时先测试再存入钥匙串，测试失败保留原凭据。
-- 支持浅色、深色和跟随系统外观；新增 Markdown 默认附加其他稿件版本的选项，录音、字幕和更新偏好接入现有功能。
-- 修复后台刷新可能丢失未保存编辑的问题；支持从多选中移除不可用模型，同时保留至少一个所选模型。
+- Fix pending preference edits being lost during background refresh, and allow an unavailable model to be removed from a multi-model selection while keeping at least one model selected.\
+  修复后台刷新可能丢失未保存编辑的问题；支持从多选中移除不可用模型，同时保留至少一个所选模型。
 
+Apple Silicon, macOS 14.2 or later. Apple local text translation requires macOS 26 and installed language packs. The connection test checks file-transcription request acceptance; live transcription and text translation need their own service permissions. Existing audio, device, sleep, first-run permission, and window-coverage limitations remain documented in the acceptance records.\
 支持 Apple Silicon、macOS 14.2 及以上。Apple 本地文字翻译需要 macOS 26 和已安装的语言包。连接测试只验证文件转写请求被接受，实时转写与文字翻译需分别开通服务。音频、设备、睡眠、首次权限及窗口场景的既有验证边界继续见验收记录。
 
 ## v0.1.0
