@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.2.1/MeetingTape-0.2.1-arm64.dmg"><strong>Download for Apple Silicon</strong></a>
-  &nbsp;·&nbsp; v0.2.1
+  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.2.2/MeetingTape-0.2.2-arm64.dmg"><strong>Download for Apple Silicon</strong></a>
+  &nbsp;·&nbsp; v0.2.2
 </p>
 
 <p align="center">
@@ -55,7 +55,7 @@ Use on-device transcription with Qwen or MOSS, or bring your own Doubao key for 
 Requires an Apple Silicon Mac running macOS 14.2 or later.
 
 <p align="center">
-  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.2.1/MeetingTape-0.2.1-arm64.dmg"><strong>Get MeetingTape</strong></a>
+  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.2.2/MeetingTape-0.2.2-arm64.dmg"><strong>Get MeetingTape</strong></a>
 </p>
 
 ---
@@ -63,6 +63,6 @@ Requires an Apple Silicon Mac running macOS 14.2 or later.
 <p align="center">
   <a href="docs/distribution.md">User guide</a> ·
   <a href="docs/transcription.md">Transcription setup</a> ·
-  <a href="https://github.com/patrick-fu/meetingtape/releases/tag/v0.2.1">Release notes</a> ·
+  <a href="https://github.com/patrick-fu/meetingtape/releases/tag/v0.2.2">Release notes</a> ·
   <a href="LICENSE">MIT License</a>
 </p>

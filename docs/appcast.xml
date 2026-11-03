@@ -6,6 +6,27 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>MeetingTape</title>
         <item>
+            <title>0.2.2</title>
+            <pubDate>Tue, 03 Nov 2026 14:25:10 +0800</pubDate>
+            <link>https://patrick-fu.github.io/meetingtape/</link>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>0.2.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[## v0.2.2 — 2026-11-03
+
+### English
+
+- Blend the library and Settings title bars into their content in dark mode, matching the unified appearance in light mode. Keep native window controls and content spacing when switching appearance or reopening windows.
+
+### 中文
+
+- 修复资料库与设置窗在深色模式下顶部色带分割的问题，标题栏与正文融合，浅色外观保持一致。切换外观、关闭重开时保留原生窗口按钮和正文间距。
+
+]]></description>
+            <enclosure url="https://github.com/patrick-fu/meetingtape/releases/download/v0.2.2/MeetingTape-0.2.2-arm64.dmg" length="6540940" type="application/octet-stream" sparkle:edSignature="u5HAAWwxn/uSSj+h4SZvaSbBSbqU5MIa0kMDXmjrbBbL5PwWhp6q/rP60Kt3XGjNIhTLSZv4TLjOQXsUXi0rCA=="/>
+        </item>
+        <item>
             <title>0.2.1</title>
             <pubDate>Tue, 03 Nov 2026 13:23:12 +0800</pubDate>
             <link>https://patrick-fu.github.io/meetingtape/</link>
@@ -67,30 +88,9 @@ Apple Silicon, macOS 14.2 or later. Apple local text translation requires macOS 
 ]]></description>
             <enclosure url="https://github.com/patrick-fu/meetingtape/releases/download/v0.2.0/MeetingTape-0.2.0-arm64.dmg" length="6536195" type="application/octet-stream" sparkle:edSignature="Aw5MnO0FfaDt3iWvKePjRPGjbV5dgpnsVBWHZVJojg7kPXsjt902gAjS/NB9nfkWWP1GXCK3eyCZHiDVvE7/BA=="/>
         </item>
-        <item>
-            <title>0.1.0</title>
-            <pubDate>Mon, 02 Nov 2026 15:07:46 +0800</pubDate>
-            <link>https://patrick-fu.github.io/meetingtape/</link>
-            <sparkle:version>3</sparkle:version>
-            <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[## v0.1.0
-
-- 新增 Sparkle 自动更新：后台检查与下载，在正常退出时安装；菜单提供检查更新与自动更新开关。
-- 录音、保存、模型安装及后台转写未完成时延后安装；手动安装的重试会重新检查任务状态并保护新录音入口。
-- 使用 HTTPS 更新源和 Ed25519 签名，下载后先验签再解包；App、内嵌组件和更新制品保留 Developer ID 签名与公证流程。
-- 版本按 SemVer 发布，当前为 0.1.0；后续更新保留录音、资料库、模型与 BYOK 设置。独立 CLI 继续手动更新。
-- 豆包云端文字翻译已用现有项目 API Key 完成中英互译与目标语言跳过测试；本次账户旧版 Token 路径仍报未授权，不将其解释为接口不支持旧版认证。
-
-旧版未内置更新器，需要手动安装本版一次。现场 AEC、短暂麦克风断档、睡眠/唤醒、全新机器首次权限、最低系统实机及完整窗口矩阵的既有验收缺口继续保留，详见 `docs/feature-acceptance.md`。
-
-]]></description>
-            <enclosure url="https://github.com/patrick-fu/meetingtape/releases/download/v0.1.0/MeetingTape-0.1.0-arm64.dmg" length="6308095" type="application/octet-stream" sparkle:edSignature="ozPrBGlUcri9SP6YQ0HGBFi/5KR7y62GozGNqOjUjpFmp41SXUW3JgEetvevMJxn7mDo/A5zNntFJyfcXNhtAQ=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: g5KLQ/sS0ahSVQfWAE7gXc3Szrme9VTeCzxDdVzIti14EKLdERxFBQEBWOT3qu+yI4KNmQQqK5gYZruTKFxIBA==
-length: 7852
+edSignature: xSG8nMbGYSSG86t7atvRHaxg2nLEv22ov13VpoaOuoVO1ZO7QNTX6bxy9HIGjj4OUXewlPFgvOws3KiW5JWiAQ==
+length: 7286
 -->
