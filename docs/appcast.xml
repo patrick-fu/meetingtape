@@ -6,6 +6,35 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>MeetingTape</title>
         <item>
+            <title>0.2.1</title>
+            <pubDate>Tue, 03 Nov 2026 13:23:12 +0800</pubDate>
+            <link>https://patrick-fu.github.io/meetingtape/</link>
+            <sparkle:version>5</sparkle:version>
+            <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[## v0.2.1 — 2026-11-03
+
+### English
+
+- Fix recording startup failing when microphone preparation is slow, including Bluetooth format changes. Audio enters the recording queues after both devices are prepared; preparation time is excluded from the recording start.
+- Keep the same receiving sequence when capture restarts after sleep, and re-enable replacement streams during device recovery.
+- Hide “Recover Recording” when the committed recovery timeline is empty. Keep the original recording failure visible if a recovery attempt fails, and preserve the recovery materials.
+
+Runtime device switching, physical sleep/wake, and existing audio-quality and hardware acceptance gaps remain tracked separately. No change to transcription providers or credential storage.
+
+### 中文
+
+- 修复麦克风准备较慢时录音启动溢出的问题，涵盖蓝牙格式切换触发的等待。两路设备准备完成后再接收音频，准备耗时不再计入录音起点。
+- 睡眠后重新启动采集沿用同一接收顺序，设备重建后的音源继续开启接收。
+- 已提交恢复时间线为空时隐藏“恢复录音”；恢复失败时保留最初录音错误，恢复材料继续留存。
+
+运行中设备切换、物理睡眠唤醒及既有音质和硬件验收缺口继续单独跟踪。转写服务与凭据存储保持原有行为。
+
+]]></description>
+            <enclosure url="https://github.com/patrick-fu/meetingtape/releases/download/v0.2.1/MeetingTape-0.2.1-arm64.dmg" length="6540526" type="application/octet-stream" sparkle:edSignature="+K4TrTuWALEcJy21snKZ1S23Qo6RLwtD96ZogGSS7QU0sUUlI/41zguIYVyNVKPbHU5vV6BPnzrzniCiekQKBw=="/>
+        </item>
+        <item>
             <title>0.2.0</title>
             <pubDate>Tue, 03 Nov 2026 03:15:26 +0800</pubDate>
             <link>https://patrick-fu.github.io/meetingtape/</link>
@@ -62,6 +91,6 @@ Apple Silicon, macOS 14.2 or later. Apple local text translation requires macOS 
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: eG+7slxErI17SEVUy5sjf/4SAO+t4NwEOX1BEFpfPxOa2ikvSbjUHh+iJNxcXB/EBGT7Y81rUnjJYOS2yvWXDg==
-length: 5654
+edSignature: g5KLQ/sS0ahSVQfWAE7gXc3Szrme9VTeCzxDdVzIti14EKLdERxFBQEBWOT3qu+yI4KNmQQqK5gYZruTKFxIBA==
+length: 7852
 -->
