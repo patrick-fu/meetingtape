@@ -186,8 +186,14 @@ private struct RecordingPanelView: View {
 
     private var failure: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(model.errorMessage ?? model.snapshot?.failureReason ?? model.statusText).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(4).textSelection(.enabled)
-            HStack { Button("恢复录音") { model.recover() }; Button("查看恢复材料") { model.revealRecovery() } }.font(.system(size: 11)).disabled(stopping)
+            Text(model.recordingFailureMessage).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(4).textSelection(.enabled)
+            if model.recoveryHasTimeline == false {
+                Text("没有已提交的录音可恢复。").font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            HStack {
+                if model.canRecover { Button("恢复录音") { model.recover() } }
+                Button("查看恢复材料") { model.revealRecovery() }
+            }.font(.system(size: 11)).disabled(stopping)
             Button("保留材料，继续使用") { model.keepFailedMaterials() }.font(.system(size: 11)).buttonStyle(.plain).foregroundStyle(.secondary).disabled(stopping)
         }.padding(.horizontal, 16).frame(maxHeight: .infinity)
     }

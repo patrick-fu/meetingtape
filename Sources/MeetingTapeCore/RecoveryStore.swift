@@ -205,6 +205,13 @@ final class RecoveryStore {
         return try encode(outputDirectory: outputDirectory)
     }
 
+    static func hasCommittedTimeline(directory: URL) throws -> Bool {
+        let directory = directory.standardizedFileURL.resolvingSymlinksInPath()
+        let fd = try openDirectory(directory)
+        defer { close(fd) }
+        return try readManifest(in: fd, directory: directory).timelineFrames > 0
+    }
+
     static func recover(directory: URL, outputDirectory: URL) throws -> SessionSnapshot {
         let store = try RecoveryStore(recovering: directory)
         return try store.encode(outputDirectory: outputDirectory, recovered: true)

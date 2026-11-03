@@ -43,7 +43,7 @@ final class AudioCapture {
         stop()
     }
 
-    func start(requireBothSources: Bool = true) throws {
+    func start(requireBothSources: Bool = true, beforeReceiving: () -> Void = {}) throws {
         guard !running else { return }
         if let latchedFatal { throw CaptureError(description: latchedFatal) }
         pending.removeAll(keepingCapacity: false)
@@ -56,6 +56,9 @@ final class AudioCapture {
             latchCallbackFailure(system)
             latchCallbackFailure(microphone)
             if let latchedFatal { throw CaptureError(description: latchedFatal) }
+            beforeReceiving()
+            if let stream = system.stream { MTStreamBegin(stream) }
+            if let stream = microphone.stream { MTStreamBegin(stream) }
         } catch {
             stop()
             throw error
@@ -149,6 +152,7 @@ final class AudioCapture {
         guard ProcessInfo.processInfo.systemUptime >= capture.retryAfter else { return }
         do {
             try open(&capture)
+            if let stream = capture.stream { MTStreamBegin(stream) }
         } catch {
             capture.reason = String(describing: error)
         }

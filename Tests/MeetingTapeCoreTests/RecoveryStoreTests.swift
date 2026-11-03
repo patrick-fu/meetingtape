@@ -107,3 +107,25 @@ import Testing
     #expect(try Data(contentsOf: manifestURL) == originalManifest)
     #expect(try Data(contentsOf: audioURL) == originalAudio.dropLast())
 }
+
+@Test func recoveryAvailabilityReadsTheCommittedManifest() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let directory = root.appendingPathComponent("session.recovery")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    var snapshot = SessionSnapshot(recoveryPath: directory.path)
+    do {
+        let store = try RecoveryStore(directory: directory, keepRaw: false, snapshot: snapshot)
+        #expect(try RecordingRecovery.hasCommittedTimeline(directory: directory.path) == false)
+        try store.append(stereo: Array(repeating: 0.125, count: 960), rawMicrophone: nil, at: 0)
+        #expect(try RecordingRecovery.hasCommittedTimeline(directory: directory.path) == false)
+        snapshot.elapsedSeconds = 0.01
+        try store.checkpoint(snapshot)
+    }
+    let manifest = directory.appendingPathComponent("manifest.json")
+    let before = try Data(contentsOf: manifest)
+    #expect(try RecordingRecovery.hasCommittedTimeline(directory: directory.path))
+    #expect(try Data(contentsOf: manifest) == before)
+    try Data("invalid".utf8).write(to: manifest)
+    #expect(throws: (any Error).self) { try RecordingRecovery.hasCommittedTimeline(directory: directory.path) }
+}

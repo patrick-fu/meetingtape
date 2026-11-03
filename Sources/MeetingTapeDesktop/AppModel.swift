@@ -25,6 +25,7 @@ final class AppModel: ObservableObject {
     @Published var savedMessage: String?
     @Published private(set) var libraryReadOnly = false
     @Published private(set) var retainedRecoveryPath: String?
+    @Published private(set) var recoveryHasTimeline: Bool?
     @Published var liveLevels = Array(repeating: 0.04, count: 36)
     @Published var waveform = Waveform()
     @Published var playing = false
@@ -74,6 +75,12 @@ final class AppModel: ObservableObject {
         } catch { return false }
     }
     var canStop: Bool { active && operation == nil && snapshot?.state != .finalizing && snapshot?.state != .stopping }
+    var canRecover: Bool { snapshot?.state == .failed && recoveryHasTimeline != false }
+    var recordingFailureMessage: String {
+        let cause = snapshot?.failureReason ?? statusText
+        guard let errorMessage else { return cause }
+        return errorMessage.contains(cause) ? errorMessage : "\(cause)\n\(errorMessage)"
+    }
     var selected: RecordingItem? { records.first { $0.id == selectedID } }
     var visibleRecords: [RecordingItem] {
         records.filter { record in
@@ -152,6 +159,9 @@ final class AppModel: ObservableObject {
                 liveCaptions.observe(records.first { $0.snapshot.sessionID == previous.sessionID }?.snapshot)
             }
             snapshot = value
+            if let value, value.state == .failed {
+                recoveryHasTimeline = try? RecordingRecovery.hasCommittedTimeline(directory: value.recoveryPath)
+            } else { recoveryHasTimeline = nil }
             recordingStatusLoaded = true
             if value?.sessionID != previous?.sessionID, let value { activeTitle = defaultTitle(for: value) }
             if let value {
@@ -215,7 +225,7 @@ final class AppModel: ObservableObject {
     }
 
     func recover() {
-        guard operation == nil, snapshot?.state == .failed, let source = snapshot?.recoveryPath else { return }
+        guard operation == nil, canRecover, let source = snapshot?.recoveryPath else { return }
         revision += 1; operation = "正在恢复录音"; errorMessage = nil; onChange?()
         Task {
             do {
