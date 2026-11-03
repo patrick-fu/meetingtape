@@ -27,10 +27,11 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppAppearance.saved.apply()
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 730), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 730), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = "MeetingTape"
         window.minSize = NSSize(width: 820, height: 600)
         window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
         window.isReleasedWhenClosed = false
         window.setFrameAutosaveName("MeetingTapeLibrary")
         window.contentView = NSHostingView(rootView: LibraryView(model: model))
@@ -78,9 +79,10 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showSettings() {
         if settingsWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 710), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 710), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
             window.title = "设置"
             window.titlebarAppearsTransparent = true
+            window.titlebarSeparatorStyle = .none
             window.minSize = NSSize(width: 800, height: 600)
             window.isReleasedWhenClosed = false
             window.setFrameAutosaveName("MeetingTapeSettings")
