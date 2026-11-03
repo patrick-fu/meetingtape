@@ -1,5 +1,15 @@
 # Change Log
 
+## v0.2.2 — 2026-11-03
+
+### English
+
+- Blend the library and Settings title bars into their content in dark mode, matching the unified appearance in light mode. Keep native window controls and content spacing when switching appearance or reopening windows.
+
+### 中文
+
+- 修复资料库与设置窗在深色模式下顶部色带分割的问题，标题栏与正文融合，浅色外观保持一致。切换外观、关闭重开时保留原生窗口按钮和正文间距。
+
 ## v0.2.1 — 2026-11-03
 
 ### English

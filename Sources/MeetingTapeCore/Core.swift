@@ -1,5 +1,5 @@
 /// Version of the meetingtape components, surfaced by the CLI as --version.
-public let meetingTapeVersion = "0.2.1"
+public let meetingTapeVersion = "0.2.2"
 
 /// Process exit codes. The CLI documents these and they are part of the
 /// agent-facing contract, so they must stay stable.
