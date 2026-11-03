@@ -4,6 +4,7 @@
 - **Discuss.** Bring new features, architecture, and compatibility changes to an issue; send small fixes directly as PRs.
 - **Preserve.** Keep recordings, recovery materials, and settings intact. Store credentials in Keychain and use synthetic or sanitized test fixtures.
 - **Submit.** Branch from `main`, use sentence-style commit titles, and open a PR. Maintainers handle versioning and releases.
+- **Changelog.** Use version headings and pair each English line with its Chinese translation immediately below, joined by a Markdown hard break. Apply this format to `CHANGELOG.md` and release notes.
 
 ## Verify
 
