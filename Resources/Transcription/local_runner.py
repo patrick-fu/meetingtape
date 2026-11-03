@@ -120,7 +120,14 @@ def transcribe(family: str, model_path: Path, samples, duration: float) -> dict:
         from mlx_audio.stt import load
 
         model = load(str(model_path))
-        result = model.generate(samples, chunk_duration=30.0, batch_size=1, verbose=False)
+        # Swift feeds at most 30 seconds per call. A full decoder budget here
+        # is a truncated/possibly looping transcript, not successful completion.
+        max_tokens = max(256, math.ceil(duration * 32))
+        result = model.generate(samples, chunk_duration=30.0, batch_size=1, verbose=False,
+                                max_tokens=max_tokens, repetition_penalty=1.1)
+        if result.generation_tokens >= max_tokens:
+            return {"error": "Qwen 生成达到上限，可能存在异常重复；此音频块未记为完成，请回听或改用其他模型。",
+                    "raw": json_value(result)}
         segments = normalize_segments(result.segments, duration)
         text = result.text
         precision = "chunk"
@@ -190,6 +197,9 @@ def main() -> int:
         raise
     result["statistics"] = process_statistics()
     write_json(args.output, result)
+    if "error" in result:
+        print(result["error"], file=sys.stderr)
+        return 1
     return 0
 
 
