@@ -64,5 +64,6 @@ Requires an Apple Silicon Mac running macOS 14.2 or later.
   <a href="docs/distribution.md">User guide</a> ·
   <a href="docs/transcription.md">Transcription setup</a> ·
   <a href="https://github.com/patrick-fu/meetingtape/releases/tag/v0.2.2">Release notes</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
   <a href="LICENSE">MIT License</a>
 </p>

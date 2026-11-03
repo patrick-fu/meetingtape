@@ -1,22 +1,8 @@
 # MeetingTape
 
-Meeting & system audio recorder for humans and agents. One stereo file:
-left = system audio (raw), right = microphone (3A, with reported raw fallback
-if speech processing fails).
-Native macOS CLI (Swift, CoreAudio tap + AVAudioEngine), designed to be
-operated end-to-end by coding agents via progressive-disclosure help.
-Later phases add a GUI on top of the same recording engine.
+Native macOS App and CLI for recording, transcription, and live captions.
 
-## Agent skills
-
-### Issue tracker
-
-GitHub Issues on patrick-fu/meetingtape, driven with the `gh` CLI. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five canonical triage roles with default label strings. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+- **Start.** Read [CONTRIBUTING.md](CONTRIBUTING.md) before making changes or opening a PR.
+- **Audio.** Keep system audio in the left channel and processed microphone audio in the right; retain raw microphone audio and report degradation when processing fails.
+- **Design.** Use [GLOSSARY.md](GLOSSARY.md) and relevant [ADRs](docs/adr/) when changing domain behavior; see [domain guidance](docs/agents/domain.md).
+- **Issues.** Track work in GitHub Issues; use the [tracker conventions](docs/agents/issue-tracker.md) and [triage labels](docs/agents/triage-labels.md) when updating tickets.

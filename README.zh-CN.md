@@ -64,5 +64,6 @@ MeetingTape 录制系统声音和麦克风，通过字幕让你跟随对话，�
   <a href="docs/distribution.md">使用指南</a> ·
   <a href="docs/transcription.md">转写设置</a> ·
   <a href="https://github.com/patrick-fu/meetingtape/releases/tag/v0.2.2">版本说明</a> ·
+  <a href="CONTRIBUTING.md">贡献指南</a> ·
   <a href="LICENSE">MIT 许可证</a>
 </p>
