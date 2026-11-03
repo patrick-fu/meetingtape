@@ -37,6 +37,7 @@ typedef struct {
 } MTStreamStatus;
 
 MTStreamRef MTStreamCreate(MTCaptureSource source, uint64_t generation, bool *cleanupFailed, char *error, size_t errorCapacity);
+void MTStreamBegin(MTStreamRef stream);
 bool MTStreamPeek(MTStreamRef stream, MTChunkInfo *info);
 bool MTStreamRead(MTStreamRef stream, float *samples, uint32_t sampleCapacity, MTChunkInfo *info);
 MTStreamStatus MTStreamPoll(MTStreamRef stream);

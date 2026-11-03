@@ -1,5 +1,23 @@
 # Change Log
 
+## v0.2.1 — 2026-11-03
+
+### English
+
+- Fix recording startup failing when microphone preparation is slow, including Bluetooth format changes. Audio enters the recording queues after both devices are prepared; preparation time is excluded from the recording start.
+- Keep the same receiving sequence when capture restarts after sleep, and re-enable replacement streams during device recovery.
+- Hide “Recover Recording” when the committed recovery timeline is empty. Keep the original recording failure visible if a recovery attempt fails, and preserve the recovery materials.
+
+Runtime device switching, physical sleep/wake, and existing audio-quality and hardware acceptance gaps remain tracked separately. No change to transcription providers or credential storage.
+
+### 中文
+
+- 修复麦克风准备较慢时录音启动溢出的问题，涵盖蓝牙格式切换触发的等待。两路设备准备完成后再接收音频，准备耗时不再计入录音起点。
+- 睡眠后重新启动采集沿用同一接收顺序，设备重建后的音源继续开启接收。
+- 已提交恢复时间线为空时隐藏“恢复录音”；恢复失败时保留最初录音错误，恢复材料继续留存。
+
+运行中设备切换、物理睡眠唤醒及既有音质和硬件验收缺口继续单独跟踪。转写服务与凭据存储保持原有行为。
+
 ## v0.2.0 — 2026-11-03
 
 ### English

@@ -147,7 +147,6 @@ static OSStatus MTSystemCallback(AudioObjectID device, const AudioTimeStamp *now
         *error = MTStatus(@"Create system tap callback", status);
         return NO;
     }
-    atomic_store_explicit(&ring.accepting, true, memory_order_release);
     status = AudioDeviceStart(aggregate, ioProc);
     if (status != noErr) {
         *error = MTStatus(@"Start system tap", status);
@@ -183,7 +182,6 @@ static OSStatus MTSystemCallback(AudioObjectID device, const AudioTimeStamp *now
     tapInstalled = YES;
     [engine prepare];
     NSError *startError;
-    atomic_store_explicit(&ring.accepting, true, memory_order_release);
     if (![engine startAndReturnError:&startError]) {
         *error = startError.localizedDescription ?: @"Start default microphone failed";
         return NO;
@@ -279,6 +277,14 @@ MTStreamRef MTStreamCreate(MTCaptureSource source, uint64_t generation, bool *cl
             return NULL;
         }
         return reference;
+    }
+}
+
+void MTStreamBegin(MTStreamRef reference) {
+    MTNativeStream *stream = (__bridge MTNativeStream *)reference;
+    if (stream->ringInitialized && !stream->stopScheduled) {
+        stream->startedAt = mach_absolute_time();
+        atomic_store_explicit(&stream->ring.accepting, true, memory_order_release);
     }
 }
 

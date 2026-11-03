@@ -117,12 +117,14 @@ public final class RecordingSession: @unchecked Sendable {
                 .appendingPathComponent(".meetingtape-\(id).recovery", isDirectory: true)
             var initial = SessionSnapshot(sessionID: id, recoveryPath: recovery.path)
             initial.recognitionMode = configuration.recognitionMode
-            clock = SessionClock()
             do {
                 try FileManager.default.createDirectory(at: recovery, withIntermediateDirectories: false,
                                                         attributes: [.posixPermissions: 0o700])
                 store = try RecoveryStore(directory: recovery, keepRaw: configuration.keepRawMicrophone, snapshot: initial)
-                try capture.start()
+                try capture.start {
+                    self.clock = SessionClock()
+                    initial.startedAt = ISO8601DateFormatter().string(from: Date())
+                }
                 let deadline = ProcessInfo.processInfo.systemUptime + 3
                 var health = capture.health()
                 while (!health.systemAvailable || !health.microphoneAvailable) && health.fatalError == nil && ProcessInfo.processInfo.systemUptime < deadline {
@@ -472,6 +474,10 @@ public final class RecordingSession: @unchecked Sendable {
 }
 
 public enum RecordingRecovery {
+    public static func hasCommittedTimeline(directory: String) throws -> Bool {
+        try RecoveryStore.hasCommittedTimeline(directory: URL(fileURLWithPath: directory))
+    }
+
     public static func recover(directory: String, outputDirectory: String) throws -> SessionSnapshot {
         try RecordingSession.validateOutput(outputDirectory)
         return try RecoveryStore.recover(directory: URL(fileURLWithPath: directory), outputDirectory: URL(fileURLWithPath: outputDirectory))
