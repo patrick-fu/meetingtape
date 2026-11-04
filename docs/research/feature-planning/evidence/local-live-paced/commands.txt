@@ -1,0 +1,8 @@
+say -v Samantha -o en.aiff -f en.txt
+say -v Tingting -o zh.aiff -f zh.txt
+afconvert -f caff -d LEI16@16000 -c 1 en.aiff en16.caf
+afconvert -f caff -d LEI16@16000 -c 1 zh.aiff zh16.caf
+xcrun swiftc -parse-as-library dual.swift -o dual
+./dual > run4.log 2>&1
+xcrun swiftc -parse-as-library formats.swift -o formats
+./formats > formats.log 2>&1

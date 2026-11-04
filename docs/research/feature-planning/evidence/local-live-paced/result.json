@@ -1,0 +1,35 @@
+{
+  "scope": "One device, two synthetic samples, concurrent separate analyzers in one process; not an accuracy or general realtime claim.",
+  "input": "16 kHz mono Int16, 0.2-second chunks paced by chunk duration; local say; no recording, playback, network or asset requests",
+  "compile_exit": 0,
+  "run_exit": 0,
+  "english": {
+    "reference_file": "en.txt",
+    "eof_seconds": 5.136,
+    "final_seconds": 5.289,
+    "final": "Today we will review the project timeline. The final decision is ready for tomorrow."
+  },
+  "chinese": {
+    "reference_file": "zh.txt",
+    "eof_seconds": 5.27,
+    "final_seconds": 5.373,
+    "final": "今天我们讨论项目进度最后的决定明天就可以确认"
+  },
+  "first_attempts": "Float input crashed in SpeechRecognizerWorker.preRunRecognition, including single-stream control; Int16 matching bestAvailableAudioFormat succeeded. Crash cause not established.",
+  "evidence": [
+    "dual.swift",
+    "commands.txt",
+    "compile.log",
+    "run4.log",
+    "run.log",
+    "run2.log",
+    "run3.log",
+    "single.log",
+    "base.log",
+    "formats.swift",
+    "formats-compile.log",
+    "formats.log"
+  ],
+  "timing_origin": "Shared top-level Date origin in dual.swift; zh started 0.000 s, en started 0.088 s; all logged timestamps use that shared origin.",
+  "best_available_audio_format": "Read-only query for both en_US and zh_CN returned mono 16000 Hz Int16; see formats.log."
+}

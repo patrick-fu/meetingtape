@@ -1,0 +1,3 @@
+en_US: Optional(<AVAudioFormat 0x10146b780:  1 ch,  16000 Hz, Int16>)
+zh_CN: Optional(<AVAudioFormat 0x101480d80:  1 ch,  16000 Hz, Int16>)
+run_exit=0

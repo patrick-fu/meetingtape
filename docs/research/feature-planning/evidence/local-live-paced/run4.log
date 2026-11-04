@@ -1,0 +1,51 @@
+0.000 zh started rate=16000.0 frames=80703 duration=5.0439375
+0.088 en started rate=16000.0 frames=77089 duration=4.8180625
+1.055 zh final=false text=今
+1.055 zh final=false text=今天
+1.057 zh final=false text=今天我
+1.057 zh final=false text=今天我们
+1.143 en final=false text=Today
+1.143 en final=false text=Today we
+1.143 en final=false text=Today we will
+1.143 en final=false text=Today we will review
+1.861 zh final=false text=今天我们讨
+1.863 zh final=false text=今天我们讨论
+1.866 zh final=false text=今天我们讨论项
+1.867 zh final=false text=今天我们讨论项目
+1.974 en final=false text=Today we will review the
+1.974 en final=false text=Today we will review the project
+2.914 zh final=false text=今天我们讨论项目进
+2.916 zh final=false text=今天我们讨论项目进度
+2.918 zh final=false text=今天我们讨论项目进度 ，
+2.919 zh final=false text=今天我们讨论项目进度最
+2.921 zh final=false text=今天我们讨论项目进度 ，最后
+3.037 en final=false text=Today we will review the project time
+3.037 en final=false text=Today we will review the project timeline
+3.037 en final=false text=Today we will review the project timeline,
+3.973 zh final=false text=今天我们讨论项目进度 ，最后的
+3.974 zh final=false text=今天我们讨论项目进度 ，最后的决
+3.976 zh final=false text=今天我们讨论项目进度 ，最后的定
+3.978 zh final=false text=今天我们讨论项目进度 ，最后决定明
+3.980 zh final=false text=今天我们讨论项目进度最后的决定明天
+4.087 en final=false text=Today we will review the project timeline, The
+4.087 en final=false text=Today we will review the project timeline, The final
+4.087 en final=false text=Today we will review the project timeline, The final dec
+4.087 en final=false text=Today we will review the project timeline, The final decision
+5.029 zh final=false text=今天我们讨论项目进度最后的决定明天就
+5.033 zh final=false text=今天我们讨论项目进度最后的决定明天就可
+5.034 zh final=false text=今天我们讨论项目进度最后的决定明天就可以
+5.136 en EOF
+5.142 en final=false text=Today we will review the project timeline, The final decision is
+5.142 en final=false text=Today we will review the project timeline, The final decision is ready
+5.143 en final=false text=Today we will review the project timeline, The final decision is ready for
+5.143 en final=false text=Today we will review the project timeline, The final decision is ready for tomorrow
+5.146 en final=false text=Today we will review the project timeline, The final decision is ready for tomorrow.
+5.270 zh EOF
+5.277 zh final=false text=今天我们讨论项目进度最后的决定明天就可以确
+5.278 zh final=false text=今天我们讨论项目进度最后的决定明天就可以确认
+5.289 en final=true text=Today we will review the project timeline. The final decision is ready for tomorrow.
+5.294 en finalized
+5.373 zh final=true text=今天我们讨论项目进度最后的决定明天就可以确认
+5.375 zh finalized
+5.375 complete
+run_exit=0
