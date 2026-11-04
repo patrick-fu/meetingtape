@@ -34,7 +34,7 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
         window.titlebarSeparatorStyle = .none
         window.isReleasedWhenClosed = false
         window.setFrameAutosaveName("MeetingTapeLibrary")
-        window.contentView = NSHostingView(rootView: LibraryView(model: model))
+        window.contentView = NSHostingView(rootView: LibraryView(model: model, updater: updater))
         window.center()
         libraryWindow = window
         recordingPanel = RecordingPanel(model: model)

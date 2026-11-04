@@ -3,6 +3,7 @@ import MeetingTapeTranscription
 
 struct LibraryView: View {
     @ObservedObject var model: AppModel
+    var updater: AppUpdater
 
     var body: some View {
         HStack(spacing: 0) {
@@ -11,7 +12,9 @@ struct LibraryView: View {
             VStack(spacing: 0) {
                 toolbar
                 Divider()
-                if let item = model.selected {
+                if model.showingOnboarding {
+                    OnboardingView(model: model, updater: updater)
+                } else if let item = model.selected {
                     RecordingDetail(model: model, item: item).id(item.id)
                 } else {
                     Spacer()
