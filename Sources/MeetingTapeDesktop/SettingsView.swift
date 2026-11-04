@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import MeetingTapeTranscription
 import SwiftUI
 
@@ -23,38 +24,55 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
     }
 }
 
+@MainActor
+final class SettingsPreferences: ObservableObject {
+    @Published var draft = TranscriptionSettings()
+    @Published private(set) var loaded = false
+    @Published var dirty = false
+    @Published var multipleModels = false
+    private var inventorySubscription: AnyCancellable?
+
+    init(transcription: TranscriptionModel) {
+        inventorySubscription = transcription.$inventory.sink { [weak self] inventory in
+            guard let self, let inventory, !dirty else { return }
+            let modelsChanged = !loaded || draft.models != inventory.settings.models
+            draft = inventory.settings; loaded = true
+            if modelsChanged { multipleModels = draft.models.count > 1 }
+        }
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject private var model: AppModel
     @ObservedObject private var transcription: TranscriptionModel
     @ObservedObject private var captions: LiveCaptionModel
     @ObservedObject private var updater: AppUpdater
+    @ObservedObject private var preferences: SettingsPreferences
     @AppStorage("appAppearance") private var appearance = AppAppearance.system
     @AppStorage("exportIncludesVersions") private var exportIncludesVersions = false
     @State private var section = SettingsSection.models
-    @State private var draft = TranscriptionSettings()
-    @State private var loaded = false
-    @State private var dirty = false
-    @State private var multipleModels = false
     @State private var choosingPostModel = false
     @State private var connecting = false
     @State private var localModel: TranscriptModel?
     @State private var languages = false
+    private let onFinish: (() -> Void)?
 
-    init(model: AppModel, updater: AppUpdater) {
+    init(model: AppModel, updater: AppUpdater, onFinish: (() -> Void)? = nil) {
         self.model = model; transcription = model.transcription; captions = model.liveCaptions; self.updater = updater
+        preferences = model.settingsPreferences
+        self.onFinish = onFinish
     }
 
-    private var editable: Bool { loaded && !transcription.busy && !transcription.updating }
+    private var editable: Bool { preferences.loaded && !transcription.busy && !transcription.updating }
 
     var body: some View {
         HStack(spacing: 0) {
-            sidebar
-            Divider()
+            if onFinish == nil { sidebar; Divider() }
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         HStack {
-                            Text(section.name).font(.system(size: 24, weight: .semibold))
+                            Text(onFinish == nil ? section.name : "选择模型").font(.system(size: 24, weight: .semibold))
                             Spacer()
                             if let inventory = transcription.inventory {
                                 Label("\(inventory.memoryGiB) GB 内存", systemImage: "desktopcomputer").font(.system(size: 11)).foregroundStyle(.secondary)
@@ -73,13 +91,7 @@ struct SettingsView: View {
                 footer
             }.background(Color(nsColor: .textBackgroundColor))
         }
-        .frame(minWidth: 800, minHeight: 560)
-        .onReceive(transcription.$inventory) { inventory in
-            guard let inventory, !dirty else { return }
-            let modelsChanged = !loaded || draft.models != inventory.settings.models
-            draft = inventory.settings; loaded = true
-            if modelsChanged { multipleModels = draft.models.count > 1 }
-        }
+        .frame(minWidth: onFinish == nil ? 800 : 0, minHeight: onFinish == nil ? 560 : 0)
         .onChange(of: appearance) { _, value in value.apply() }
         .sheet(isPresented: $connecting) { CloudConnectionSettingsView(model: transcription) }
         .sheet(item: $localModel) { family in LocalModelSettingsView(model: transcription, family: family) }
@@ -116,6 +128,10 @@ struct SettingsView: View {
             settingRow("外观") {
                 Picker("外观", selection: $appearance) { ForEach(AppAppearance.allCases) { Text($0.name).tag($0) } }.labelsHidden().pickerStyle(.segmented).frame(width: 255)
             }
+            Divider()
+            settingRow("使用入门") {
+                Button("查看引导") { model.showOnboarding(); model.onOpenLibrary?() }.disabled(!model.canStart)
+            }
         }
     }
 
@@ -128,7 +144,7 @@ struct SettingsView: View {
                     Toggle("保留原始麦克风音轨", isOn: Binding(get: { model.keepRaw }, set: { model.setKeepRaw($0) })).labelsHidden().toggleStyle(.switch).controlSize(.small).disabled(model.active || model.operation != nil)
                 }
                 Divider()
-                settingRow("音源识别", detail: draft.recognitionMode == .separate ? "系统音频与麦克风分别识别，保留来源" : "合并成一路识别，节省转写资源") {
+                settingRow("音源识别", detail: preferences.draft.recognitionMode == .separate ? "系统音频与麦克风分别识别，保留来源" : "合并成一路识别，节省转写资源") {
                     Picker("音源识别", selection: preference(\.recognitionMode)) {
                         Text("分开转写").tag(RecognitionMode.separate); Text("合并转写").tag(RecognitionMode.merged)
                     }.labelsHidden().frame(width: 150).disabled(!editable)
@@ -138,7 +154,7 @@ struct SettingsView: View {
                     Toggle("录音结束后自动转写", isOn: preference(\.automatic)).labelsHidden().toggleStyle(.switch).controlSize(.small).disabled(!editable)
                 }
             }
-            if draft.automatic && draft.models.contains(.doubao) {
+            if preferences.draft.automatic && preferences.draft.models.contains(.doubao) {
                 Text("新录音保存完成后会上传至豆包，使用你的账户计费。").font(.system(size: 11)).foregroundStyle(.orange)
             }
             if model.retainedRecoveryPath != nil { Button("查看上次恢复材料") { model.revealRecovery() } }
@@ -157,18 +173,18 @@ struct SettingsView: View {
                 Divider()
                 defaultRow("录后转写", symbol: "doc.text", color: .green, detail: "录音结束后生成完整稿件") {
                     Button { choosingPostModel = true } label: {
-                        HStack { modelLabel(draft.models.map(\.name).joined(separator: " + "), ready: draft.models.allSatisfy(modelReady)); Image(systemName: "chevron.down").font(.system(size: 9)) }
+                        HStack { modelLabel(preferences.draft.models.map(\.name).joined(separator: " + "), ready: preferences.draft.models.allSatisfy(modelReady)); Image(systemName: "chevron.down").font(.system(size: 9)) }
                     }.disabled(!editable).popover(isPresented: $choosingPostModel) { postModels }
                 }
                 HStack(spacing: 15) {
-                    Toggle("多模型对照", isOn: Binding(get: { multipleModels }, set: { value in
-                        multipleModels = value
-                        if !value, draft.models.count > 1 { draft.models = [draft.models[0]]; dirty = true }
+                    Toggle("多模型对照", isOn: Binding(get: { preferences.multipleModels }, set: { value in
+                        preferences.multipleModels = value
+                        if !value, preferences.draft.models.count > 1 { preferences.draft.models = [preferences.draft.models[0]]; preferences.dirty = true }
                     })).toggleStyle(.checkbox)
-                    if draft.models.count > 1 {
-                        Picker("主稿优先", selection: Binding(get: { draft.models.first ?? .qwen }, set: { value in
-                            draft.models.removeAll { $0 == value }; draft.models.insert(value, at: 0); dirty = true
-                        })) { ForEach(draft.models) { Text($0.name).tag($0) } }.frame(maxWidth: 220)
+                    if preferences.draft.models.count > 1 {
+                        Picker("主稿优先", selection: Binding(get: { preferences.draft.models.first ?? .qwen }, set: { value in
+                            preferences.draft.models.removeAll { $0 == value }; preferences.draft.models.insert(value, at: 0); preferences.dirty = true
+                        })) { ForEach(preferences.draft.models) { Text($0.name).tag($0) } }.frame(maxWidth: 220)
                     }
                     Spacer(minLength: 0)
                 }.font(.system(size: 11)).padding(.leading, 49).padding(.bottom, 10).disabled(!editable)
@@ -198,16 +214,16 @@ struct SettingsView: View {
             Text("录后转写模型").font(.system(size: 14, weight: .semibold))
             ForEach(TranscriptModel.allCases) { family in
                 HStack(spacing: 12) {
-                    if multipleModels {
-                        Toggle(family.name, isOn: Binding(get: { draft.models.contains(family) }, set: { value in
-                            if value { draft.models.append(family) }
-                            else { draft.models.removeAll { $0 == family } }
-                            dirty = true
-                        })).toggleStyle(.checkbox).disabled((!modelReady(family) && !draft.models.contains(family)) || draft.models == [family])
+                    if preferences.multipleModels {
+                        Toggle(family.name, isOn: Binding(get: { preferences.draft.models.contains(family) }, set: { value in
+                            if value { preferences.draft.models.append(family) }
+                            else { preferences.draft.models.removeAll { $0 == family } }
+                            preferences.dirty = true
+                        })).toggleStyle(.checkbox).disabled((!modelReady(family) && !preferences.draft.models.contains(family)) || preferences.draft.models == [family])
                     } else {
                         Button {
-                            draft.models = [family]; dirty = true; choosingPostModel = false
-                        } label: { Label(family.name, systemImage: draft.models.contains(family) ? "checkmark.circle.fill" : "circle") }.buttonStyle(.plain).disabled(!modelReady(family))
+                            preferences.draft.models = [family]; preferences.dirty = true; choosingPostModel = false
+                        } label: { Label(family.name, systemImage: preferences.draft.models.contains(family) ? "checkmark.circle.fill" : "circle") }.buttonStyle(.plain).disabled(!modelReady(family))
                     }
                     Spacer()
                     if !modelReady(family) {
@@ -218,7 +234,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            if multipleModels { Text("每个模型保留独立稿件。").font(.system(size: 11)).foregroundStyle(.secondary) }
+            if preferences.multipleModels { Text("每个模型保留独立稿件。").font(.system(size: 11)).foregroundStyle(.secondary) }
         }.padding(20).frame(width: 310).disabled(!editable)
     }
 
@@ -320,21 +336,28 @@ struct SettingsView: View {
                     Button { transcription.message = nil } label: { Image(systemName: "xmark") }.buttonStyle(.plain).accessibilityLabel("关闭设置提示")
                 }
             }
-            if dirty || transcription.busy {
+            if preferences.dirty || transcription.busy || onFinish != nil {
                 HStack {
                     if transcription.busy { ProgressView().controlSize(.small) }
-                    else { Text("有未保存的更改").font(.system(size: 11)).foregroundStyle(.secondary) }
+                    else if preferences.dirty { Text("有未保存的更改").font(.system(size: 11)).foregroundStyle(.secondary) }
                     Spacer()
-                    Button("保存偏好") {
-                        transcription.save(draft) { passed in if passed { dirty = false } }
-                    }.keyboardShortcut("s", modifiers: .command).disabled(!dirty || !editable)
+                    if let onFinish {
+                        Button(preferences.dirty ? "保存并进入资料库" : "进入资料库") {
+                            if preferences.dirty { transcription.save(preferences.draft) { passed in if passed { preferences.dirty = false; onFinish() } } }
+                            else { onFinish() }
+                        }.keyboardShortcut(.defaultAction).disabled(transcription.busy || transcription.updating || (preferences.dirty && !editable))
+                    } else {
+                        Button("保存偏好") {
+                            transcription.save(preferences.draft) { passed in if passed { preferences.dirty = false } }
+                        }.keyboardShortcut("s", modifiers: .command).disabled(!preferences.dirty || !editable)
+                    }
                 }
             }
-        }.padding(.horizontal, 28).padding(.vertical, dirty || transcription.busy || transcription.message != nil ? 14 : 0)
+        }.padding(.horizontal, 28).padding(.vertical, preferences.dirty || transcription.busy || transcription.message != nil || onFinish != nil ? 14 : 0)
     }
 
     private func preference<Value>(_ key: WritableKeyPath<TranscriptionSettings, Value>) -> Binding<Value> {
-        Binding(get: { draft[keyPath: key] }, set: { draft[keyPath: key] = $0; dirty = true })
+        Binding(get: { preferences.draft[keyPath: key] }, set: { preferences.draft[keyPath: key] = $0; preferences.dirty = true })
     }
     private func modelReady(_ family: TranscriptModel) -> Bool {
         family.local ? transcription.inventory?.settings.installations[family.rawValue]?.available == true : transcription.inventory?.credentialConfigured == true

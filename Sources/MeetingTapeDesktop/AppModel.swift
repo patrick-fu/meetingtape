@@ -33,6 +33,7 @@ final class AppModel: ObservableObject {
     @Published var playbackDuration = 0.0
     @Published var outputDirectory: String
     @Published var keepRaw: Bool
+    @Published var showingOnboarding = false
     @Published var installingUpdate = false
     private(set) var recordingStatusLoaded = false
     var onChange: (() -> Void)?
@@ -41,6 +42,8 @@ final class AppModel: ObservableObject {
     var onOpenSettings: (() -> Void)?
     private let client = RecordingClient()
     let transcription = TranscriptionModel()
+    lazy var settingsPreferences = SettingsPreferences(transcription: transcription)
+    let onboardingPlayback = OnboardingPlayback()
     let liveCaptions = LiveCaptionModel()
     private let files = LibraryFiles()
     private let defaults = UserDefaults.standard
@@ -51,6 +54,8 @@ final class AppModel: ObservableObject {
     private var playbackTimer: Timer?
     private var polling = false
     private var revision = 0
+    private var libraryLoaded = false
+    private var onboardingReviewed = false
 
     init() {
         outputDirectory = UserDefaults.standard.string(forKey: "outputDirectory")
@@ -105,6 +110,7 @@ final class AppModel: ObservableObject {
             do { records = try await files.load() }
             catch { libraryReadOnly = true; errorMessage = "无法读取资料库索引，原文件已保留。\n\(error.localizedDescription)" }
             await refreshLibrary()
+            libraryLoaded = true
             if selectedID == nil, let first = records.sorted(by: { $0.date > $1.date }).first { select(first.id) }
             await poll()
             pollTask = Task { [weak self] in
@@ -128,7 +134,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func flush() async { await saveTask?.value; await liveCaptions.shutdown() }
+    func flush() async { onboardingPlayback.stop(); await saveTask?.value; await liveCaptions.shutdown() }
 
     func refreshLibrary() async {
         var directories = defaults.stringArray(forKey: "recordingDirectories") ?? []
@@ -159,6 +165,7 @@ final class AppModel: ObservableObject {
                 liveCaptions.observe(records.first { $0.snapshot.sessionID == previous.sessionID }?.snapshot)
             }
             snapshot = value
+            if active && showingOnboarding { finishOnboarding() }
             if let value, value.state == .failed {
                 recoveryHasTimeline = try? RecordingRecovery.hasCommittedTimeline(directory: value.recoveryPath)
             } else { recoveryHasTimeline = nil }
@@ -177,6 +184,14 @@ final class AppModel: ObservableObject {
                 let level = max(value?.systemLevel ?? 0, value?.microphoneLevel ?? 0)
                 liveLevels.removeFirst(); liveLevels.append(meterHeight(level))
             }
+            if libraryLoaded && !onboardingReviewed {
+                onboardingReviewed = true
+                if !records.isEmpty {
+                    defaults.set(true, forKey: "onboardingCompleted")
+                } else if value == nil && !libraryReadOnly && !defaults.bool(forKey: "onboardingCompleted") {
+                    showingOnboarding = true
+                }
+            }
             onChange?()
         } catch {
             guard requestedRevision == revision else { return }
@@ -187,6 +202,7 @@ final class AppModel: ObservableObject {
 
     func start() {
         guard canStart else { return }
+        onboardingPlayback.stop()
         revision += 1; operation = "正在准备录音"; errorMessage = nil; savedMessage = nil
         stopPlayback(); panelExpanded = false; onChange?()
         let destination = outputDirectory
@@ -199,12 +215,24 @@ final class AppModel: ObservableObject {
                 let value = try await client.run(["start", "--out", destination, "--json"] + (raw ? ["--keep-raw"] : []))
                 guard let value, value.state == .recording else { throw DesktopFailure(message: "录音尚未就绪。") }
                 snapshot = value; activeTitle = defaultTitle(for: value)
+                if showingOnboarding { finishOnboarding() }
                 liveCaptions.observe(value, fromStart: true)
                 rememberDirectory(destination)
             } catch { errorMessage = error.localizedDescription }
             operation = nil; onChange?()
             await poll()
         }
+    }
+
+    func showOnboarding() {
+        guard canStart else { return }
+        stopPlayback()
+        showingOnboarding = true
+    }
+
+    func finishOnboarding() {
+        showingOnboarding = false
+        defaults.set(true, forKey: "onboardingCompleted")
     }
 
     func stop() async -> Bool {
