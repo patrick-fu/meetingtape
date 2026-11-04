@@ -1,0 +1,55 @@
+final=false text=D
+final=false text=During
+final=false text=During this
+final=false text=During this rap
+final=false text=During this rapid
+final=false text=During this rapidly
+final=false text=During this rapidly sp
+final=false text=During this rapidly spok
+final=false text=During this rapidly spoken
+final=false text=During this rapidly spoken sy
+final=false text=During this rapidly spoken synt
+final=false text=During this rapidly spoken synthet
+final=false text=During this rapidly spoken synthetic
+final=false text=During this rapidly spoken synthetic test
+final=false text=During this rapidly spoken synthetic test,
+final=false text=During this rapidly spoken synthetic test, we
+final=false text=During this rapidly spoken synthetic test, we care
+final=false text=During this rapidly spoken synthetic test, we carefully
+final=false text=During this rapidly spoken synthetic test, we carefully count
+final=false text=During this rapidly spoken synthetic test, we carefully count every
+final=false text=During this rapidly spoken synthetic test, we carefully count every word
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sent
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final mark
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final marker
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final marker sil
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final marker silver
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final marker silver l
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final marker silver lan
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final marker silver lantern
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final marker silver lantern at
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final marker silver lantern at the
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final marker silver lantern at the very
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final marker silver lantern at the very end
+final=false text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence and continue without a long pause until we reach the final marker silver lantern at the very end.
+final=true text=During this rapidly spoken synthetic test, we carefully count every word from the beginning through the middle of the sentence, and continue without a long pause until we reach the final marker silver lantern at the very end.

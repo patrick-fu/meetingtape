@@ -1,0 +1,30 @@
+final=false text=The
+final=false text=The first
+final=false text=The first sent
+final=false text=The first sentence
+final=false text=The first sentence is
+final=false text=The first sentence is a
+final=false text=The first sentence is a sy
+final=false text=The first sentence is a synt
+final=false text=The first sentence is a synthet
+final=false text=The first sentence is a synthetic
+final=false text=The first sentence is a synthetic test
+final=false text=The first sentence is a synthetic test.
+final=true text=The first sentence is a synthetic test.
+final=false text= This
+final=false text= This last
+final=false text= This last sent
+final=false text= This last sentence
+final=false text= This last sentence must
+final=false text= This last sentence must app
+final=false text= This last sentence must appear
+final=false text= This last sentence must appear before
+final=false text= This last sentence must appear before the
+final=false text= This last sentence must appear before the trans
+final=false text= This last sentence must appear before the transcription
+final=false text= This last sentence must appear before the transcription s
+final=false text= This last sentence must appear before the transcription session
+final=false text= This last sentence must appear before the transcription session end
+final=false text= This last sentence must appear before the transcription session ends
+final=false text= This last sentence must appear before the transcription session ends.
+final=true text= This last sentence must appear before the transcription session ends.
