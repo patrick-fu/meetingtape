@@ -1,0 +1,14 @@
+PASS unchanged snapshot creates no new request
+PASS timing-only revision schedules translation
+PASS final-only revision schedules translation
+PASS reject late old revision
+PASS reject wrong target
+PASS translation-only same-language stores target once
+PASS debounce cancelled before request; final sends immediately
+PASS same segment requests overlap when adapter ignores cancellation
+PASS cancelled adapter result rejected after await
+PASS different finalized segments have no shared concurrency limit
+PASS store complete does not require translation to leave pending
+PASS store preserves other source connection
+PASS after discard rejects late results
+All 13 offline checks passed
