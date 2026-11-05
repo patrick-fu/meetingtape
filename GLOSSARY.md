@@ -33,6 +33,12 @@ A time range in an active session during which one or both audio sources are tem
 One recording from start to stop, including automatic recovery after system sleep or device changes; at most one session is active at a time.
 _Avoid_: recording job
 
+**录音文档（Recording document）**:
+一场录音及其相关内容的统一组织单元，汇集音频、纪要、字幕与翻译、各模型的转写版本及运行明细。
+
+**转写版本（Transcript version）**:
+同一场录音的一份识别结果，保留其模型、音源及时间来源；多个转写版本属于同一份录音文档。
+
 **转写（Transcription）**:
 对录音中的语音进行识别，生成可按时间定位的原文；包括录音中的实时转写与保存后的录后转写。
 
