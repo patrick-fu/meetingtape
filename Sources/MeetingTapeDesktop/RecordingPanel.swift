@@ -2,9 +2,11 @@ import AppKit
 import SwiftUI
 import MeetingTapeTranscription
 
-final class RecordingPanel: NSPanel {
+final class RecordingPanel: NSPanel, NSWindowDelegate {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+    private var currentDisplayID: String?
+    private var restoringPosition = false
 
     init(model: AppModel) {
         super.init(contentRect: NSRect(x: 0, y: 0, width: 196, height: 54), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -17,10 +19,59 @@ final class RecordingPanel: NSPanel {
         animationBehavior = .utilityWindow
         contentView = PanelHostingView(rootView: RecordingPanelView(model: model, captions: model.liveCaptions))
         setPinned(model.panelPinned)
-        if let screen = NSScreen.main {
-            let frame = screen.visibleFrame
-            setFrameOrigin(NSPoint(x: frame.maxX - 228, y: frame.maxY - 86))
+        delegate = self
+        restorePosition()
+        NotificationCenter.default.addObserver(self, selector: #selector(screenParametersChanged),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        guard !restoringPosition, NSEvent.pressedMouseButtons != 0, let screen else { return }
+        let id = displayID(screen)
+        var positions = UserDefaults.standard.dictionary(forKey: "recordingPanelPositions") as? [String: [String: Double]] ?? [:]
+        positions[id] = ["right": screen.visibleFrame.maxX - frame.maxX, "top": screen.visibleFrame.maxY - frame.maxY]
+        UserDefaults.standard.set(positions, forKey: "recordingPanelPositions")
+        UserDefaults.standard.set(id, forKey: "recordingPanelScreen")
+        currentDisplayID = id
+    }
+
+    @objc private func screenParametersChanged() {
+        restorePosition()
+    }
+
+    private func displayID(_ screen: NSScreen) -> String {
+        guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
+            return screen.localizedName
         }
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(number.uint32Value)?.takeRetainedValue(),
+              let identifier = CFUUIDCreateString(nil, uuid) else { return number.stringValue }
+        return identifier as String
+    }
+
+    private func restorePosition() {
+        let preferred = currentDisplayID ?? UserDefaults.standard.string(forKey: "recordingPanelScreen")
+        guard let target = NSScreen.screens.first(where: { displayID($0) == preferred }) ?? NSScreen.main ?? NSScreen.screens.first else { return }
+        let id = displayID(target)
+        let positions = UserDefaults.standard.dictionary(forKey: "recordingPanelPositions") as? [String: [String: Double]]
+        let saved = positions?[id]
+        let right = saved?["right"].flatMap { $0.isFinite ? $0 : nil } ?? 32
+        let top = saved?["top"].flatMap { $0.isFinite ? $0 : nil } ?? 32
+        let origin = NSPoint(x: target.visibleFrame.maxX - frame.width - right,
+                             y: target.visibleFrame.maxY - frame.height - top)
+        restoringPosition = true
+        setFrameOrigin(Self.confinedOrigin(origin, size: frame.size, visibleFrame: target.visibleFrame))
+        restoringPosition = false
+        currentDisplayID = id
+        UserDefaults.standard.set(id, forKey: "recordingPanelScreen")
+    }
+
+    static func confinedOrigin(_ origin: NSPoint, size: NSSize, visibleFrame: NSRect) -> NSPoint {
+        NSPoint(x: max(visibleFrame.minX + 10, min(origin.x, visibleFrame.maxX - size.width - 10)),
+                y: max(visibleFrame.minY + 10, min(origin.y, visibleFrame.maxY - size.height - 10)))
     }
 
     func setPinned(_ pinned: Bool) {
@@ -34,11 +85,9 @@ final class RecordingPanel: NSPanel {
     func resize(expanded: Bool, compactHeight: CGFloat) {
         let size = NSSize(width: expanded ? 380 : 196, height: expanded ? 320 : compactHeight)
         guard frame.size != size else { return }
-        var origin = NSPoint(x: frame.maxX - size.width, y: frame.maxY - size.height)
+        let origin = NSPoint(x: frame.maxX - size.width, y: frame.maxY - size.height)
         let visible = screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? frame
-        origin.x = min(max(origin.x, visible.minX + 10), visible.maxX - size.width - 10)
-        origin.y = min(max(origin.y, visible.minY + 10), visible.maxY - size.height - 10)
-        setFrame(NSRect(origin: origin, size: size), display: true, animate: false)
+        setFrame(NSRect(origin: Self.confinedOrigin(origin, size: size, visibleFrame: visible), size: size), display: true, animate: false)
     }
 }
 
@@ -59,6 +108,7 @@ private struct RecordingPanelView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var captions: LiveCaptionModel
     @State private var following = true
+    @State private var hasNewCaptions = false
     private var elapsed: Double { model.snapshot?.elapsedSeconds ?? 0 }
     private var stopping: Bool { model.operation != nil || model.snapshot?.state == .finalizing || model.snapshot?.state == .stopping }
     private var captureIssue: String? {
@@ -172,15 +222,21 @@ private struct RecordingPanelView: View {
             }
             .overlay(alignment: .bottom) {
                 if !following {
-                    Button("回到最新") { following = true; proxy.scrollTo("latest", anchor: .bottom) }
+                    Button(hasNewCaptions ? "有新字幕 · 回到最新" : "回到最新") {
+                        hasNewCaptions = false
+                        following = true
+                        proxy.scrollTo("latest", anchor: .bottom)
+                    }
                         .font(.system(size: 10)).buttonStyle(.bordered).padding(.bottom, 6)
                 }
             }
             .onChange(of: captions.segments) { _, _ in
                 if following { proxy.scrollTo("latest", anchor: .bottom) }
+                else { hasNewCaptions = true }
             }
-            .onAppear { following = true; proxy.scrollTo("latest", anchor: .bottom) }
-            .onChange(of: captions.sessionID) { _, _ in following = true }
+            .onChange(of: following) { _, value in if value { hasNewCaptions = false } }
+            .onAppear { following = true; hasNewCaptions = false; proxy.scrollTo("latest", anchor: .bottom) }
+            .onChange(of: captions.sessionID) { _, _ in following = true; hasNewCaptions = false }
         }.frame(maxHeight: .infinity)
     }
 
@@ -228,16 +284,30 @@ private struct ScrollReadingObserver: NSViewRepresentable {
     @Binding var following: Bool
     final class ObserverView: NSView {
         var changed: ((Bool) -> Void)?
+        var isFollowing: (() -> Bool)?
         var monitor: Any?
+        private var lastScrollOrigin: CGFloat?
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             stop()
             guard window != nil else { return }
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            if let clip = enclosingScrollView?.contentView {
+                lastScrollOrigin = clip.bounds.minY
+                clip.postsBoundsChangedNotifications = true
+                NotificationCenter.default.addObserver(self, selector: #selector(boundsChanged),
+                    name: NSView.boundsDidChangeNotification, object: clip)
+            }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel, .keyDown]) { [weak self] event in
                 MainActor.assumeIsolated {
                     guard let self, event.window === self.window,
-                          let scroll = self.enclosingScrollView,
-                          scroll.bounds.contains(scroll.convert(event.locationInWindow, from: nil)) else { return }
+                          let scroll = self.enclosingScrollView else { return }
+                    if event.type == .keyDown {
+                        guard [115, 116, 119, 121, 125, 126].contains(event.keyCode),
+                              let responder = self.window?.firstResponder as? NSView,
+                              responder.isDescendant(of: scroll) else { return }
+                    } else {
+                        guard scroll.bounds.contains(scroll.convert(event.locationInWindow, from: nil)) else { return }
+                    }
                     self.changed?(false)
                     DispatchQueue.main.async { [weak self, weak scroll] in
                         guard let scroll, let document = scroll.documentView else { return }
@@ -247,10 +317,31 @@ private struct ScrollReadingObserver: NSViewRepresentable {
                 return event
             }
         }
-        func stop() { if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil }
+        @objc private func boundsChanged() {
+            guard let scroll = enclosingScrollView, let document = scroll.documentView else { return }
+            let origin = scroll.contentView.bounds.minY
+            let movedUp = lastScrollOrigin.map { origin < $0 - 0.5 } ?? false
+            lastScrollOrigin = origin
+            guard isFollowing?() == false || NSEvent.pressedMouseButtons != 0 || movedUp else { return }
+            changed?(scroll.contentView.bounds.maxY >= document.bounds.maxY - 24)
+        }
+        func stop() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+            lastScrollOrigin = nil
+            NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: nil)
+        }
     }
-    func makeNSView(context: Context) -> ObserverView { let view = ObserverView(); view.changed = { following = $0 }; return view }
-    func updateNSView(_ view: ObserverView, context: Context) { view.changed = { following = $0 } }
+    func makeNSView(context: Context) -> ObserverView {
+        let view = ObserverView()
+        view.changed = { following = $0 }
+        view.isFollowing = { following }
+        return view
+    }
+    func updateNSView(_ view: ObserverView, context: Context) {
+        view.changed = { following = $0 }
+        view.isFollowing = { following }
+    }
     static func dismantleNSView(_ view: ObserverView, coordinator: ()) { view.stop() }
 }
 
