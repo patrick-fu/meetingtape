@@ -6,6 +6,31 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>MeetingTape</title>
         <item>
+            <title>0.3.0</title>
+            <pubDate>Fri, 06 Nov 2026 02:27:35 +0800</pubDate>
+            <link>https://patrick-fu.github.io/meetingtape/</link>
+            <sparkle:version>8</sparkle:version>
+            <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[## v0.3.0 — 2026-11-06
+
+- Start with a guided sample, recording permissions, and model setup. Skip setup when ready, or reopen it from General settings.\
+  首次使用可分步体验示例、了解录音权限并配置模型；可稍后设置，也可从通用设置重新进入。
+- Keep pending model and recording preferences in sync between onboarding and Settings.\
+  首次引导与设置窗共享未保存的模型和录音偏好，切换入口继续编辑。
+- Read earlier captions without new content pulling you to the bottom. A new-caption hint takes you back to the latest text and resumes following.\
+  回看历史字幕时保留阅读位置；出现新内容时轻提示，点击回到最新并恢复跟随。
+- Remember the caption window position for each display and keep restored windows within the visible screen area.\
+  按显示器记忆字幕窗位置，重开恢复时保持窗口处于屏幕可见区域。
+
+Local builds, automated checks, and native UI verification are documented in the [first-use](docs/verification/first-use.md) and [caption-window](docs/verification/caption-window.md) records, including remaining hardware checks.\
+本地构建、自动化检查和原生界面验收见[首次使用](docs/verification/first-use.md)与[字幕窗](docs/verification/caption-window.md)记录，包含待补的实机检查。
+
+]]></description>
+            <enclosure url="https://github.com/patrick-fu/meetingtape/releases/download/v0.3.0/MeetingTape-0.3.0-arm64.dmg" length="6706874" type="application/octet-stream" sparkle:edSignature="aDguxl/3y6DURNL/Q1yZPHtzu2c34gEcytVS8x2oubxKUp4LnejLRI7ll6kmEopknOioYhhJerMhTyt7deoGDQ=="/>
+        </item>
+        <item>
             <title>0.2.3</title>
             <pubDate>Tue, 03 Nov 2026 21:07:44 +0800</pubDate>
             <link>https://patrick-fu.github.io/meetingtape/</link>
@@ -44,38 +69,9 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 ]]></description>
             <enclosure url="https://github.com/patrick-fu/meetingtape/releases/download/v0.2.2/MeetingTape-0.2.2-arm64.dmg" length="6540940" type="application/octet-stream" sparkle:edSignature="u5HAAWwxn/uSSj+h4SZvaSbBSbqU5MIa0kMDXmjrbBbL5PwWhp6q/rP60Kt3XGjNIhTLSZv4TLjOQXsUXi0rCA=="/>
         </item>
-        <item>
-            <title>0.2.1</title>
-            <pubDate>Tue, 03 Nov 2026 13:23:12 +0800</pubDate>
-            <link>https://patrick-fu.github.io/meetingtape/</link>
-            <sparkle:version>5</sparkle:version>
-            <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[## v0.2.1 — 2026-11-03
-
-### English
-
-- Fix recording startup failing when microphone preparation is slow, including Bluetooth format changes. Audio enters the recording queues after both devices are prepared; preparation time is excluded from the recording start.
-- Keep the same receiving sequence when capture restarts after sleep, and re-enable replacement streams during device recovery.
-- Hide “Recover Recording” when the committed recovery timeline is empty. Keep the original recording failure visible if a recovery attempt fails, and preserve the recovery materials.
-
-Runtime device switching, physical sleep/wake, and existing audio-quality and hardware acceptance gaps remain tracked separately. No change to transcription providers or credential storage.
-
-### 中文
-
-- 修复麦克风准备较慢时录音启动溢出的问题，涵盖蓝牙格式切换触发的等待。两路设备准备完成后再接收音频，准备耗时不再计入录音起点。
-- 睡眠后重新启动采集沿用同一接收顺序，设备重建后的音源继续开启接收。
-- 已提交恢复时间线为空时隐藏“恢复录音”；恢复失败时保留最初录音错误，恢复材料继续留存。
-
-运行中设备切换、物理睡眠唤醒及既有音质和硬件验收缺口继续单独跟踪。转写服务与凭据存储保持原有行为。
-
-]]></description>
-            <enclosure url="https://github.com/patrick-fu/meetingtape/releases/download/v0.2.1/MeetingTape-0.2.1-arm64.dmg" length="6540526" type="application/octet-stream" sparkle:edSignature="+K4TrTuWALEcJy21snKZ1S23Qo6RLwtD96ZogGSS7QU0sUUlI/41zguIYVyNVKPbHU5vV6BPnzrzniCiekQKBw=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: d6plLAs4z7tZirRMM9lu0V/zck+GkRU+OgzHprFj00DlCSZijiRsiJVJkiTuBgS37R2JMmesgytrek7w8bfsAw==
-length: 5337
+edSignature: urbfn4NMARhkV4qG3TkK/L7B2ItvABZx4X47A1qQKp92UpqeuVgUbhYkfgFtSbULu3TAGUJepQwo1OIIrY4hDQ==
+length: 5338
 -->
