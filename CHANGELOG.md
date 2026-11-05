@@ -1,5 +1,19 @@
 # Change Log
 
+## v0.3.0 — 2026-11-06
+
+- Start with a guided sample, recording permissions, and model setup. Skip setup when ready, or reopen it from General settings.\
+  首次使用可分步体验示例、了解录音权限并配置模型；可稍后设置，也可从通用设置重新进入。
+- Keep pending model and recording preferences in sync between onboarding and Settings.\
+  首次引导与设置窗共享未保存的模型和录音偏好，切换入口继续编辑。
+- Read earlier captions without new content pulling you to the bottom. A new-caption hint takes you back to the latest text and resumes following.\
+  回看历史字幕时保留阅读位置；出现新内容时轻提示，点击回到最新并恢复跟随。
+- Remember the caption window position for each display and keep restored windows within the visible screen area.\
+  按显示器记忆字幕窗位置，重开恢复时保持窗口处于屏幕可见区域。
+
+Local builds, automated checks, and native UI verification are documented in the [first-use](docs/verification/first-use.md) and [caption-window](docs/verification/caption-window.md) records, including remaining hardware checks.\
+本地构建、自动化检查和原生界面验收见[首次使用](docs/verification/first-use.md)与[字幕窗](docs/verification/caption-window.md)记录，包含待补的实机检查。
+
 ## v0.2.3 — 2026-11-03
 
 - Reduce runaway repetition in local Qwen transcription with a mild repetition penalty and a generation budget based on audio duration.\
