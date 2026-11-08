@@ -28,7 +28,7 @@ public struct TextModelSettings: Codable, Sendable, Equatable {
     public var cloud = TextModelConnection(baseURL: "https://ark.cn-beijing.volces.com/api/v3")
     public var automatic = true
     public var automaticSince: Date?
-    public var language = "zh-Hans"
+    public var language = Locale.preferredLanguages.first?.hasPrefix("zh") == true ? "zh-Hans" : "en"
     public init() {}
     public var connection: TextModelConnection { provider == .local ? local : cloud }
     public var configured: Bool { !connection.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
