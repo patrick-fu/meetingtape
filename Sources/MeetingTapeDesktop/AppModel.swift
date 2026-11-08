@@ -75,7 +75,7 @@ final class AppModel: ObservableObject {
     }
     var panelVisible: Bool { active || operation != nil || snapshot?.state == .failed }
     var canStart: Bool { !installingUpdate && !active && operation == nil && snapshot?.state != .failed }
-    var updateBusy: Bool { !recordingStatusLoaded || active || operation != nil || transcription.updateBusy || minutes.busy }
+    var updateBusy: Bool { !recordingStatusLoaded || active || operation != nil || transcription.updateBusy || minutes.busy || liveCaptions.installingLocal }
 
     func readyForUpdateExit() async -> Bool {
         guard await transcription.refresh(), !updateBusy else { return false }

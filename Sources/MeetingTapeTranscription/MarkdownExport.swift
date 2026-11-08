@@ -171,6 +171,9 @@ public struct TranscriptExportSnapshot: Sendable {
         if version.unreadableLive { return lines + ["实时归档不可读取，统计不可得。", ""] }
         guard let run = version.run, let task = version.task else {
             if let live = version.live {
+                if !live.translationJobs.isEmpty || !live.recognitionObservations.isEmpty || live.connections.contains(where: { $0.cpuSeconds != nil || $0.peakResidentBytes != nil }) {
+                    return lines + [CaptionRunStatistics(archive: live, versionID: version.id.hasPrefix("live:") ? String(version.id.dropFirst(5)) : nil).markdown(), ""]
+                }
                 for connection in live.connections {
                     lines += ["- 实时识别 · \(connection.source.name)：连接运行耗时 \(seconds(connection.elapsedSeconds))，包含等待新音频、网络与尾句收尾。"]
                 }

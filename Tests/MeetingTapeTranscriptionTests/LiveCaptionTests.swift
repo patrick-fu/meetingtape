@@ -1,7 +1,54 @@
 import Foundation
+import AVFoundation
 import Testing
 @testable import MeetingTapeCore
 @testable import MeetingTapeTranscription
+
+@Test(.enabled(if: ProcessInfo.processInfo.environment["MEETINGTAPE_LIVE_SMOKE_AUDIO"] != nil), .timeLimit(.minutes(2))) @MainActor
+func localLiveSessionConsumesPacedSeparateAudioAndPersistsItsFinalTail() async throws {
+    let environment = ProcessInfo.processInfo.environment
+    let path = try #require(environment["MEETINGTAPE_LIVE_SMOKE_AUDIO"])
+    let file = try AVAudioFile(forReading: URL(fileURLWithPath: path), commonFormat: .pcmFormatFloat32, interleaved: false)
+    #expect(file.processingFormat.sampleRate == 16000 && file.processingFormat.channelCount == 1)
+    let buffer = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)))
+    try file.read(into: buffer)
+    let pointer = try #require(buffer.floatChannelData?[0])
+    let mono = Array(UnsafeBufferPointer(start: pointer, count: Int(buffer.frameLength)))
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("meetingtape-live-consumer-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let recovery = root.appendingPathComponent("recovery")
+    try FileManager.default.createDirectory(at: recovery, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    var snapshot = SessionSnapshot(recoveryPath: recovery.path)
+    snapshot.state = .recording; snapshot.recognitionMode = .separate
+    let writer = try RecoveryStore(directory: recovery, keepRaw: false, snapshot: snapshot)
+    let captions = LiveCaptionStore(directory: root.appendingPathComponent("captions"))
+    let session = LiveCaptionSession(snapshot: snapshot, store: captions, recognitionProvider: .senseVoice)
+    let consumer = Task { await session.run { _ in } }
+    defer { consumer.cancel() }
+    let clock = ContinuousClock(), began = ContinuousClock.now
+    var offset = 0
+    while offset < mono.count {
+        let end = min(offset + 3200, mono.count)
+        try await clock.sleep(until: began.advanced(by: .seconds(Double(end) / 16000)))
+        var stereo: [Float] = []; stereo.reserveCapacity((end - offset) * 6)
+        for sample in mono[offset..<end] { for _ in 0..<3 { stereo += [sample, 0] } }
+        try writer.append(stereo: stereo, rawMicrophone: nil, at: Int64(offset * 3))
+        snapshot.elapsedSeconds = Double(end) / 16000; snapshot.committedSeconds = snapshot.elapsedSeconds
+        try writer.checkpoint(snapshot); offset = end
+    }
+    snapshot.state = .finalizing; try writer.checkpoint(snapshot)
+    let archive = await consumer.value
+    #expect(archive.complete)
+    let system = archive.segments.filter { $0.source == .system }.map(\.text).joined(separator: " ").uppercased()
+    #expect(system.contains("MERGE") && system.contains("BLUE NOTEBOOK") && system.contains("银色灯笼"))
+    #expect(archive.segments.filter { $0.source == .microphone }.isEmpty)
+    #expect(archive.segments.allSatisfy { $0.final })
+    #expect(archive.connections.count == 2 && archive.connections.allSatisfy { $0.complete && $0.provider == .senseVoice && ($0.cpuSeconds ?? 0) > 0 && ($0.peakResidentBytes ?? 0) > 0 })
+    #expect(archive.connections.allSatisfy { abs($0.end - snapshot.elapsedSeconds) < 0.001 })
+    #expect(try await captions.load(snapshot.sessionID) == archive)
+    if let destination = environment["MEETINGTAPE_LIVE_SMOKE_OUTPUT"] { try JSONEncoder().encode(archive).write(to: URL(fileURLWithPath: destination), options: .atomic) }
+}
 
 @Test func liveFramesDecodeAcknowledgementPartialAndFinalWithoutLosingSequenceBytes() throws {
     let path = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/live-caption-frames.json")

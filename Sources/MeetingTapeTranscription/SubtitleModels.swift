@@ -49,6 +49,12 @@ public struct CaptionConnection: Codable, Sendable, Equatable, Identifiable {
     public var complete: Bool
     public var elapsedSeconds: Double?
     public var state: String
+    public var provider: LiveRecognitionProvider?
+    public var lagSeconds: Double?
+    public var cpuSeconds: Double?
+    public var peakResidentBytes: Int64?
+    public var resourceScope: String?
+    public var modelName: String { (provider ?? .doubao).name }
 }
 
 public typealias CaptionTranslate = @Sendable (String, String, SubtitleTranslationProvider) async throws -> CaptionTranslation

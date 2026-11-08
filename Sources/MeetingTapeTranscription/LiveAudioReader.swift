@@ -22,6 +22,7 @@ final class LiveAudioReader {
     let sessionID: String
     private let source: TranscriptSource
     private let directory: URL
+    private let maximumBacklogFrames: Int64?
     private var descriptor: Int32 = -1
     private var finalFile: AVAudioFile?
     private(set) var cursor: Int64
@@ -30,9 +31,10 @@ final class LiveAudioReader {
     private(set) var state: RecordingState = .recording
     var sealed: Bool { [.finalizing, .completed, .failed].contains(state) }
 
-    init(snapshot: SessionSnapshot, startFrame: Int64, source: TranscriptSource = .merged) {
+    init(snapshot: SessionSnapshot, startFrame: Int64, source: TranscriptSource = .merged, maximumBacklogFrames: Int64? = 480_000) {
         sessionID = snapshot.sessionID
         self.source = source
+        self.maximumBacklogFrames = maximumBacklogFrames
         directory = URL(fileURLWithPath: snapshot.recoveryPath)
         cursor = startFrame
     }
@@ -65,7 +67,7 @@ final class LiveAudioReader {
         guard total == value.audioFrames else { throw TranscriptionFailure("录音片段长度不匹配，实时字幕已停止。") }
         available = true; committedFrame = value.timelineFrames; state = value.snapshot.state
         guard cursor < committedFrame else { return nil }
-        guard committedFrame - cursor <= 48_000 * 10 else { throw TranscriptionFailure("字幕连接过慢，录音继续。请重新连接字幕。") }
+        if let maximumBacklogFrames, committedFrame - cursor > maximumBacklogFrames { throw TranscriptionFailure("字幕连接过慢，录音继续。请重新连接字幕。") }
         if descriptor < 0 {
             descriptor = open(directory.appendingPathComponent("audio.caf").path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
             guard descriptor >= 0 else { throw TranscriptionFailure("无法读取已提交录音，录音继续。") }

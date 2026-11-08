@@ -6,6 +6,7 @@ enum TranscriptionCommand {
     Transcribe saved recordings with local Qwen/MOSS or Doubao 2.0 (BYOK).
 
     meetingtape transcribe models [--existing|--existing-root <runtime-directory>]
+    meetingtape transcribe live <status|install>
     meetingtape transcribe settings [--save-stdin]
     meetingtape transcribe install <qwen|moss> [--profile low-memory|standard] [--reuse] [--reuse-root <runtime-directory>]
     meetingtape transcribe credentials <status|save-stdin|remove|test|test-stdin>
@@ -13,6 +14,7 @@ enum TranscriptionCommand {
     meetingtape transcribe list
     meetingtape transcribe status <task-id>
     meetingtape transcribe result <task-id> <qwen|moss|doubao> [--text]
+    meetingtape transcribe stats <session-id> [--version <caption-version-id>]
     meetingtape transcribe retry <task-id> <qwen|moss|doubao> [--source system|microphone|merged]
     meetingtape transcribe export <session-id|task-id> --primary live|live:<version-id>|minutes:<version-id>|<task-id>:<model> [--include-versions] [--title <title>] [--output <file.md>]
 
@@ -32,6 +34,13 @@ enum TranscriptionCommand {
         do {
             let store = try TranscriptionStore()
             switch action {
+            case "live":
+                let runtime = try LocalLiveRuntime()
+                switch rest {
+                case ["status"]: return try json(runtime.status())
+                case ["install"]: return try json(runtime.install())
+                default: throw TranscriptionFailure("Use live status|install.")
+                }
             case "models":
                 var inventory = try LocalModels.inventory(includeExisting: rest.contains("--existing"))
                 if let index = rest.firstIndex(of: "--existing-root"), index + 1 < rest.count {
@@ -94,6 +103,12 @@ enum TranscriptionCommand {
                 guard rest.count >= 2, let model = TranscriptModel(rawValue: rest[1]) else { throw TranscriptionFailure("Provide task ID and model.") }
                 let result = try store.result(rest[0], model: model)
                 return rest.contains("--text") ? RunResult(exitCode: .ok, stdout: result.text + "\n") : try json(result)
+            case "stats":
+                guard rest.count == 1 || rest.count == 3 && rest[1] == "--version", let id = rest.first,
+                      let archive = try LiveCaptionStore().readSnapshot(id) else { throw TranscriptionFailure("Provide a recording with a live caption archive.") }
+                let version = rest.count == 3 ? rest[2] : nil
+                if let version, !archive.translationVersions.contains(where: { $0.id == version }) { throw TranscriptionFailure("Caption version does not exist.") }
+                return try json(CaptionRunStatistics(archive: archive, versionID: version))
             case "export":
                 guard let id = rest.first, !id.hasPrefix("--") else { throw TranscriptionFailure("Provide a recording or task ID.") }
                 var primary: String?, destination: String?, title = "录音转写", includeVersions = false

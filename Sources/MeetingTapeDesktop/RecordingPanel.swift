@@ -146,9 +146,15 @@ private struct RecordingPanelView: View {
             }.padding(.leading, 10).padding(.trailing, 7).padding(.top, 3).frame(height: 27)
             if captions.anyEnabled {
                 VStack(alignment: .leading, spacing: 4) {
-                    if let latest = captions.latest { Text(latest.source.name).font(.system(size: 8)).foregroundStyle(.secondary) }
-                    if captions.enabled { Text(captions.currentLine).font(.system(size: 11)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading) }
-                    if captions.translationEnabled { Text(captions.translationLine).font(.system(size: 11)).lineLimit(2).foregroundStyle(.blue.opacity(captions.latest?.translation?.state == .pending ? 0.5 : 1)).frame(maxWidth: .infinity, alignment: .leading) }
+                    if let latest = captions.latest { Text(latest.source.name + (captions.lagSeconds >= 2 ? " · 落后 \(Int(captions.lagSeconds)) 秒" : "")).font(.system(size: 8)).foregroundStyle(.secondary) }
+                    if captions.enabled {
+                        Text(captions.currentLine).font(.system(size: 11)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(alignment: .topLeading) { displayAcknowledgement(translation: false) }
+                    }
+                    if captions.translationEnabled {
+                        Text(captions.translationLine).font(.system(size: 11)).lineLimit(2).foregroundStyle(.blue.opacity(captions.latest?.translation?.state == .pending ? 0.5 : 1)).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(alignment: .topLeading) { displayAcknowledgement(translation: true) }
+                    }
                 }.padding(.horizontal, 10).padding(.top, 2).padding(.bottom, 4).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
@@ -207,7 +213,9 @@ private struct RecordingPanelView: View {
                                 Text(recordingTime(segment.start)).monospacedDigit()
                                 Text(segment.source.name)
                             }.font(.system(size: 8)).foregroundStyle(.tertiary).frame(width: 43, alignment: .leading).padding(.top, 3)
-                            CaptionTextView(segment: segment).frame(maxWidth: .infinity, alignment: .leading)
+                            CaptionTextView(segment: segment, onDisplay: { translation, date, uptime in
+                                captions.acknowledgeDisplay(segment, original: !translation, translation: translation, at: date, uptime: uptime)
+                            }).frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                     if captions.segments.isEmpty {
@@ -238,6 +246,15 @@ private struct RecordingPanelView: View {
             .onAppear { following = true; hasNewCaptions = false; proxy.scrollTo("latest", anchor: .bottom) }
             .onChange(of: captions.sessionID) { _, _ in following = true; hasNewCaptions = false }
         }.frame(maxHeight: .infinity)
+    }
+
+    @ViewBuilder private func displayAcknowledgement(translation: Bool) -> some View {
+        if let segment = captions.latest, !translation || segment.translation?.state == .translated || segment.translation?.state == .sameLanguage {
+            let token = "\(segment.id):\(segment.revision):\(translation):\(segment.translation?.state.rawValue ?? "")"
+            CaptionDisplayAcknowledgement(token: token) { date, uptime in
+                captions.acknowledgeDisplay(segment, original: !translation, translation: translation, at: date, uptime: uptime)
+            }.frame(width: 1, height: 1)
+        }
     }
 
     private var failure: some View {

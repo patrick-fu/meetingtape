@@ -5,6 +5,7 @@ struct CaptionDraftBuffer {
     let source: TranscriptSource
     let options: SubtitleOptions
     private var originals: [LiveCaptionSegment] = []
+    private var revisions: [String: Int] = [:]
     private(set) var segments: [LiveCaptionSegment] = []
 
     init(connectionID: String, source: TranscriptSource, options: SubtitleOptions) {
@@ -18,7 +19,8 @@ struct CaptionDraftBuffer {
             raw.id = "\(connectionID):\(index)"; raw.source = source; raw.connectionID = connectionID
             let old = self.originals.first { $0.id == raw.id }
             let revised = old.map { $0.text != raw.text || $0.start != raw.start || $0.end != raw.end || $0.final != raw.final } ?? true
-            raw.revision = (old?.revision ?? 0) + (revised ? 1 : 0)
+            raw.revision = (old?.revision ?? revisions[raw.id] ?? 0) + (revised ? 1 : 0)
+            revisions[raw.id] = raw.revision
             var display = raw
             if !options.transcription { display.text = "" }
             if options.translation {

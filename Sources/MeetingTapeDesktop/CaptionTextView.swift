@@ -3,20 +3,24 @@ import SwiftUI
 
 struct CaptionTextView: View {
     let segment: LiveCaptionSegment
+    var onDisplay: (@MainActor (Bool, Date, Double) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             if !segment.text.isEmpty {
                 Text(segment.text).font(.system(size: 14)).foregroundStyle(segment.final ? .primary : .secondary).textSelection(.enabled)
+                    .background(alignment: .topLeading) { acknowledgement(translation: false) }
             }
             if let translation = segment.translation {
                 switch translation.state {
                 case .translated:
                     Text(SubtitleLanguage.name(translation.targetLanguage)).font(.system(size: 9)).foregroundStyle(.tertiary)
                     Text(translation.text ?? "").font(.system(size: 13)).foregroundStyle(.blue).textSelection(.enabled)
+                        .background(alignment: .topLeading) { acknowledgement(translation: true) }
                 case .sameLanguage:
                     if segment.text.isEmpty { Text(translation.text ?? "").font(.system(size: 14)).textSelection(.enabled) }
                     Text("无需翻译").font(.system(size: 9)).foregroundStyle(.tertiary)
+                        .background(alignment: .topLeading) { acknowledgement(translation: true) }
                 case .pending:
                     if let text = translation.text { Text(text).font(.system(size: 13)).foregroundStyle(.blue.opacity(0.5)).textSelection(.enabled) }
                     Text(translation.text == nil ? "正在翻译…" : "更新中…").font(.system(size: 11)).foregroundStyle(.tertiary)
@@ -25,6 +29,15 @@ struct CaptionTextView: View {
                     Text(translation.state == .failed ? "翻译暂不可用" : "译文未完成").font(.system(size: 11)).foregroundStyle(.orange)
                 }
             }
+        }
+    }
+
+    @ViewBuilder private func acknowledgement(translation: Bool) -> some View {
+        if let onDisplay {
+            let token = "\(segment.id):\(segment.revision):\(translation):\(segment.translation?.state.rawValue ?? "")"
+            CaptionDisplayAcknowledgement(token: token) { date, uptime in
+                onDisplay(translation, date, uptime)
+            }.frame(width: 1, height: 1)
         }
     }
 }

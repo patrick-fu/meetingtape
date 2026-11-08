@@ -13,6 +13,12 @@ public struct CaptionTranslationAttempt: Codable, Sendable, Equatable, Identifia
     public var executionSeconds: Double?
     public var state: String = "running"
     public var usage: [String: Int]?
+    public var producerID: String?
+    public var receivedUptime: Double?
+    public var displayedUptime: Double?
+    public var displayedAt: Date?
+    public var throttleSeconds: Double?
+    public var retryWaitSeconds: Double?
 }
 
 public struct CaptionTranslationJob: Codable, Sendable, Equatable, Identifiable {
@@ -68,6 +74,7 @@ public actor CaptionTranslationQueue {
     private var stopped = false
     private var wakeRevision = 0
     private var persistenceFailure: String?
+    private var throttleWaits: [String: Double] = [:]
 
     public init(sessionID: String, store: LiveCaptionStore, translator: CaptionTranslate? = nil, update: @escaping @Sendable (LiveCaptionArchive) async -> Void = { _ in }) {
         self.sessionID = sessionID; self.store = store; self.update = update
@@ -77,9 +84,9 @@ public actor CaptionTranslationQueue {
 
     func observe(_ update: @escaping @Sendable (LiveCaptionArchive) async -> Void) { self.update = update }
 
-    func receive(mode: RecognitionMode, connection: CaptionConnection, segments: [LiveCaptionSegment], inputs: [LiveCaptionSegment], options: SubtitleOptions) async throws -> LiveCaptionArchive {
+    func receive(mode: RecognitionMode, connection: CaptionConnection, segments: [LiveCaptionSegment], observations: [CaptionRecognitionObservation] = [], inputs: [LiveCaptionSegment], options: SubtitleOptions) async throws -> LiveCaptionArchive {
         guard !stopped else { throw CancellationError() }
-        let value = try await store.updateConnection(sessionID, mode: mode, connection: connection, segments: segments, translationInputs: inputs, options: options, runID: runID)
+        let value = try await store.updateConnection(sessionID, mode: mode, connection: connection, segments: segments, observations: observations, translationInputs: inputs, options: options, runID: runID)
         wakeRevision += 1
         if let activeJobID, value.translationJobs.first(where: { $0.id == activeJobID })?.state == .superseded { request?.cancel() }
         await update(value)
@@ -121,14 +128,21 @@ public actor CaptionTranslationQueue {
                 let observedWake = wakeRevision
                 guard let archive = try await store.load(sessionID) else { return }
                 let pending = archive.translationJobs.filter { $0.runID == runID && $0.state == .queued }
+                let pendingIDs = Set(pending.map(\.id))
+                throttleWaits = throttleWaits.filter { pendingIDs.contains($0.key) }
                 if pending.isEmpty { if observedWake != wakeRevision { continue }; return }
                 let now = Date()
                 let draftReady = lastDraft.map { $0.duration(to: .now) >= .seconds(1) } ?? true
                 let ready = pending.filter { $0.readyAt <= now && ($0.final || draftReady) }
                 guard let next = ready.sorted(by: { $0.final != $1.final ? $0.final : $0.queuedAt < $1.queuedAt }).first else {
-                    try await Task.sleep(for: .milliseconds(50)); continue
+                    let blocked = pending.filter { !$0.final && $0.readyAt <= now && !draftReady }.map(\.id)
+                    let waited = ContinuousClock.now
+                    try await Task.sleep(for: .milliseconds(50))
+                    let elapsed = waited.duration(to: .now).secondsValue
+                    for id in blocked { throttleWaits[id, default: 0] += elapsed }
+                    continue
                 }
-                guard let job = try await store.startTranslation(sessionID, id: next.id, runID: runID) else { continue }
+                guard let job = try await store.startTranslation(sessionID, id: next.id, runID: runID, throttleSeconds: throttleWaits.removeValue(forKey: next.id) ?? 0) else { continue }
                 if !job.final { lastDraft = .now }
                 activeJobID = job.id
                 let translator = self.translator
@@ -137,13 +151,14 @@ public actor CaptionTranslationQueue {
                 request = task
                 do {
                     var response = try await task.value
+                    let receivedAt = Date(), receivedUptime = ProcessInfo.processInfo.systemUptime
                     if response.state == .sameLanguage { response.text = job.input }
                     let elapsed = began.duration(to: .now).secondsValue
-                    let value = try await store.finishTranslation(sessionID, job: job, response: response, elapsed: elapsed)
+                    let value = try await store.finishTranslation(sessionID, job: job, response: response, elapsed: elapsed, receivedAt: receivedAt, receivedUptime: receivedUptime)
                     await update(value)
                 } catch {
                     let elapsed = began.duration(to: .now).secondsValue
-                    let value = try await store.failTranslation(sessionID, job: job, error: error, elapsed: elapsed)
+                    let value = try await store.failTranslation(sessionID, job: job, error: error, elapsed: elapsed, receivedAt: Date(), cancelled: task.isCancelled || Task.isCancelled)
                     await update(value)
                 }
                 activeJobID = nil; request = nil
@@ -164,6 +179,10 @@ extension Duration {
 }
 
 extension LiveCaptionArchive {
+    var hasCoverageGaps: Bool {
+        let used = Set(coverage.filter { $0.state == "enabled" }.map(\.feature))
+        return coverage.contains { used.contains($0.feature) && ($0.state == "disabled" || $0.state == "unknown") && $0.end > $0.start }
+    }
     public func viewingTranslationVersion(_ id: String?) -> Self {
         guard let id, let version = translationVersions.first(where: { $0.id == id }) else { return self }
         var value = self
@@ -207,7 +226,7 @@ extension LiveCaptionArchive {
     }
 
     mutating func refreshCompletion() {
-        partial = connections.contains { $0.state == "failed" || $0.state == "cancelled" } || coverage.contains { ($0.state == "disabled" || $0.state == "unknown") && $0.end > $0.start } || segments.contains { $0.translation?.state == .failed || $0.translation?.state == .interrupted }
+        partial = connections.contains { $0.state == "failed" || $0.state == "cancelled" } || hasCoverageGaps || segments.contains { $0.translation?.state == .failed || $0.translation?.state == .interrupted }
         complete = !partial && connections.allSatisfy(\.complete) && segments.allSatisfy { $0.final && $0.translation?.state != .pending }
         message = connections.contains { $0.state == "failed" } ? "部分音源字幕连接失败，录音继续。" : nil
         if message == nil, segments.contains(where: { $0.translation?.state == .failed || $0.translation?.state == .interrupted }) { message = "部分译文未完成，已保留取得的字幕。" }
@@ -221,34 +240,41 @@ private struct TranslationProjectionKey: Hashable {
 }
 
 extension LiveCaptionStore {
-    func startTranslation(_ sessionID: String, id: String, runID: String) throws -> CaptionTranslationJob? {
+    func startTranslation(_ sessionID: String, id: String, runID: String, throttleSeconds: Double = 0) throws -> CaptionTranslationJob? {
         guard var value = try load(sessionID), let i = value.translationJobs.firstIndex(where: { $0.id == id && $0.runID == runID && $0.state == .queued }) else { return nil }
         value.translationJobs[i].state = .running
-        value.translationJobs[i].attempts.append(CaptionTranslationAttempt(startedAt: Date(), queueSeconds: max(0, Date().timeIntervalSince(value.translationJobs[i].readyAt))))
+        let began = Date(), job = value.translationJobs[i]
+        var attempt = CaptionTranslationAttempt(startedAt: began, queueSeconds: max(0, began.timeIntervalSince(job.readyAt) - throttleSeconds))
+        attempt.throttleSeconds = throttleSeconds
+        attempt.retryWaitSeconds = job.attempts.last?.finishedAt.map { max(0, min(began, job.readyAt).timeIntervalSince($0)) } ?? 0
+        value.translationJobs[i].attempts.append(attempt)
         value.updateRevision += 1
         try save(value)
         return value.translationJobs[i]
     }
 
-    func finishTranslation(_ sessionID: String, job: CaptionTranslationJob, response: CaptionTranslation, elapsed: Double) throws -> LiveCaptionArchive {
+    func finishTranslation(_ sessionID: String, job: CaptionTranslationJob, response: CaptionTranslation, elapsed: Double, receivedAt: Date = Date(), receivedUptime: Double = ProcessInfo.processInfo.systemUptime) throws -> LiveCaptionArchive {
         try changeTranslation(sessionID, job: job) { current in
             if let a = current.attempts.indices.last {
-                current.attempts[a].finishedAt = Date(); current.attempts[a].executionSeconds = elapsed
+                current.attempts[a].finishedAt = receivedAt; current.attempts[a].executionSeconds = elapsed
                 current.attempts[a].usage = response.usage; current.attempts[a].state = "succeeded"
+                current.attempts[a].producerID = CaptionObservationClock.producerID
+                current.attempts[a].receivedUptime = receivedUptime
             }
             guard current.state == .running else { return }
             current.state = .succeeded; current.result = response; current.message = nil
         }
     }
 
-    func failTranslation(_ sessionID: String, job: CaptionTranslationJob, error: any Error, elapsed: Double) throws -> LiveCaptionArchive {
-        try changeTranslation(sessionID, job: job) { current in
+    func failTranslation(_ sessionID: String, job: CaptionTranslationJob, error: any Error, elapsed: Double, receivedAt: Date = Date(), cancelled: Bool = false) throws -> LiveCaptionArchive {
+        let cancelled = cancelled || error is CancellationError || (error as? URLError)?.code == .cancelled
+        return try changeTranslation(sessionID, job: job) { current in
             if let a = current.attempts.indices.last {
-                current.attempts[a].finishedAt = Date(); current.attempts[a].executionSeconds = elapsed
-                current.attempts[a].state = error is CancellationError ? "cancelled" : "failed"
+                current.attempts[a].finishedAt = receivedAt; current.attempts[a].executionSeconds = elapsed
+                current.attempts[a].state = cancelled ? "cancelled" : "failed"
             }
             guard current.state == .running else { return }
-            if error is CancellationError { current.state = .interrupted }
+            if cancelled { current.state = .interrupted }
             else if TranslationFailure.canRetry(error), current.attempts.count < 3 {
                 current.state = .queued
                 current.readyAt = Date().addingTimeInterval(current.attempts.count == 1 ? 0.5 : 1)
