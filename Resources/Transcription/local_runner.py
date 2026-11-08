@@ -137,10 +137,16 @@ def transcribe(family: str, model_path: Path, samples, duration: float) -> dict:
         from moss_transcribe_diarize.transcript_parser import parse_transcript
 
         model = load_model(str(model_path), strict=False)
+        # MOSS also emits timestamps and speaker tokens, so reserve more
+        # tokens per second than Qwen without allowing an 8192-token loop.
+        max_tokens = max(512, math.ceil(duration * 64))
         result = model.generate(
-            samples, prompt=DEFAULT_PROMPT, max_tokens=8192, temperature=0.0,
+            samples, prompt=DEFAULT_PROMPT, max_tokens=max_tokens, temperature=0.0,
             top_p=1.0, top_k=0, prefill_step_size=2048,
         )
+        if result.generation_tokens >= max_tokens:
+            return {"error": "MOSS 生成达到上限，可能存在异常重复；此音频块未记为完成，请回听或改用其他模型。",
+                    "raw": json_value(result)}
         parsed = parse_transcript(result.text)
         segments = normalize_segments(parsed, duration)
         text = "\n".join(item.text for item in parsed) if parsed else result.text
