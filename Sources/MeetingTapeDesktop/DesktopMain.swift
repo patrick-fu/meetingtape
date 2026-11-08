@@ -57,6 +57,7 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
         model.onOpenLibrary = { [weak self] in self?.showLibrary() }
         model.onShowRecordingPanel = { [weak self] in self?.showRecordingPanel() }
         model.onOpenSettings = { [weak self] in self?.showSettings() }
+        model.onOpenMinutesSettings = { [weak self] in self?.model.settingsSection = .minutes; self?.showSettings() }
         configureMenu()
         updateWindows()
         showLibrary()
@@ -153,6 +154,7 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
                 Task {
                     let stopped = await model.stop()
                     let saved = await model.flush(preserveTranslations: preserveTranslations)
+                    if !stopped || !saved { model.minutes.resumeAfterCancelledExit() }
                     terminationPending = false
                     sender.reply(toApplicationShouldTerminate: stopped && saved)
                 }
@@ -165,7 +167,7 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
         Task {
             var ready = await model.flush(preserveTranslations: preserveTranslations)
             if ready, updater.installationPending { ready = await model.readyForUpdateExit() }
-            if !ready { updater.cancelTerminationWhileBusy(); terminationPending = false }
+            if !ready { model.minutes.resumeAfterCancelledExit(); updater.cancelTerminationWhileBusy(); terminationPending = false }
             sender.reply(toApplicationShouldTerminate: ready)
         }
         return .terminateLater

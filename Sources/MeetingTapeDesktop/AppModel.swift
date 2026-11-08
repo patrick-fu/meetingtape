@@ -2,6 +2,7 @@ import AppKit
 import AVFoundation
 import Combine
 import MeetingTapeCore
+import MeetingTapeTranscription
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -40,11 +41,14 @@ final class AppModel: ObservableObject {
     var onOpenLibrary: (() -> Void)?
     var onShowRecordingPanel: (() -> Void)?
     var onOpenSettings: (() -> Void)?
+    var onOpenMinutesSettings: (() -> Void)?
+    @Published var settingsSection = SettingsSection.models
     private let client = RecordingClient()
     let transcription = TranscriptionModel()
+    lazy var minutes = MeetingMinutesModel(transcription: transcription, captions: liveCaptions)
     lazy var settingsPreferences = SettingsPreferences(transcription: transcription)
     let onboardingPlayback = OnboardingPlayback()
-    let liveCaptions = LiveCaptionModel()
+    let liveCaptions: LiveCaptionModel
     private let files = LibraryFiles()
     private let defaults = UserDefaults.standard
     private var saveTask: Task<Void, Never>?
@@ -57,7 +61,8 @@ final class AppModel: ObservableObject {
     private var libraryLoaded = false
     private var onboardingReviewed = false
 
-    init() {
+    init(liveCaptions: LiveCaptionModel = LiveCaptionModel()) {
+        self.liveCaptions = liveCaptions
         outputDirectory = UserDefaults.standard.string(forKey: "outputDirectory")
             ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("MeetingTape").path
         keepRaw = UserDefaults.standard.bool(forKey: "keepRaw")
@@ -70,7 +75,7 @@ final class AppModel: ObservableObject {
     }
     var panelVisible: Bool { active || operation != nil || snapshot?.state == .failed }
     var canStart: Bool { !installingUpdate && !active && operation == nil && snapshot?.state != .failed }
-    var updateBusy: Bool { !recordingStatusLoaded || active || operation != nil || transcription.updateBusy }
+    var updateBusy: Bool { !recordingStatusLoaded || active || operation != nil || transcription.updateBusy || minutes.busy }
 
     func readyForUpdateExit() async -> Bool {
         guard await transcription.refresh(), !updateBusy else { return false }
@@ -105,6 +110,7 @@ final class AppModel: ObservableObject {
     }
 
     func launch() {
+        _ = minutes
         transcription.launch()
         Task {
             do { records = try await files.load() }
@@ -135,9 +141,14 @@ final class AppModel: ObservableObject {
     }
 
     @discardableResult func flush(preserveTranslations: Bool = false) async -> Bool {
+        _ = minutes.prepareForExit(preserve: preserveTranslations)
         onboardingPlayback.stop(); await saveTask?.value
-        let saved = await liveCaptions.shutdown(preserveTranslations: preserveTranslations)
-        if !saved { errorMessage = liveCaptions.message; onChange?() }
+        let captionsSaved = await liveCaptions.shutdown(preserveTranslations: preserveTranslations)
+        let minutesSaved = await minutes.finish(preserve: preserveTranslations)
+        if !captionsSaved { errorMessage = liveCaptions.message; onChange?() }
+        if !minutesSaved { errorMessage = "纪要执行记录未能保存，请重试后退出。"; onChange?() }
+        let saved = captionsSaved && minutesSaved
+        if !saved { minutes.resumeAfterCancelledExit() }
         return saved
     }
 
@@ -290,6 +301,8 @@ final class AppModel: ObservableObject {
             let title = snapshot?.sessionID == value.sessionID ? activeTitle : defaultTitle(for: value)
             records.append(RecordingItem(snapshot: value, title: title))
             persist()
+            let completedAt = ISO8601DateFormatter().date(from: value.startedAt).map { $0.addingTimeInterval(value.elapsedSeconds) } ?? .distantPast
+            minutes.recordingCompleted(sessionID: value.sessionID, at: completedAt)
         }
         rememberDirectory(URL(fileURLWithPath: path).deletingLastPathComponent().path)
         filter = "all"; query = ""; select(path)
@@ -380,6 +393,15 @@ final class AppModel: ObservableObject {
         guard !active, operation == nil else { return }
         if !playing { togglePlayback() }
         seek(value)
+    }
+
+    func locateSegment(_ value: Double) {
+        guard let item = selected, item.exists, !active, operation == nil else { return }
+        do {
+            if player == nil { player = try AVAudioPlayer(contentsOf: item.url); playbackDuration = player?.duration ?? 0 }
+            player?.pause(); playing = false
+            seek(min(max(0, value), playbackDuration))
+        } catch { errorMessage = error.localizedDescription }
     }
 
     private func stopPlayback() {

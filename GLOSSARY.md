@@ -61,6 +61,15 @@ _Avoid_: 同声传译、语音同传
 **模型选择（Model selection）**:
 一次转写使用的一个或多个识别模型；用户可以设置默认选择，并在发起转写时调整。
 
+**Meeting notes**:
+An editable summary of one session, combining its available transcripts while keeping citations to each source version. Generation and editing create new versions.
+
+**Frozen citation**:
+A source excerpt saved with its transcript version, model, audio source, revision, and time range. Later transcript changes preserve the cited excerpt.
+
+**Confirmed term**:
+A user-confirmed name with aliases and optional translations, scoped to one session or the library. Confirmation preserves the source text.
+
 **Developer ID**:
 The Apple code-signing identity type used for every MeetingTape build; its designated requirement is anchored to the signing team, so certificate renewal keeps the identity stable.
 _Avoid_: ad-hoc signing, self-signing

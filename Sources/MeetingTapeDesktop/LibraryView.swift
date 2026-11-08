@@ -156,6 +156,7 @@ private struct RecordingDetail: View {
                     Button { model.toggleStar(item.id) } label: { Image(systemName: item.starred ? "star.fill" : "star").foregroundStyle(item.starred ? .orange.opacity(0.75) : .secondary).frame(width: 30, height: 30) }.buttonStyle(.plain).disabled(model.libraryReadOnly).accessibilityLabel(item.starred ? "取消标记" : "标记录音")
                 }
                 waveformPanel
+                MeetingMinutesView(model: model, item: item)
                 if let liveArchive { LiveCaptionArchiveView(model: model, item: item, archive: liveArchive) }
                 if let liveArchiveError { Text(liveArchiveError).font(.system(size: 11)).foregroundStyle(.orange) }
                 TranscriptSection(model: model, item: item)
