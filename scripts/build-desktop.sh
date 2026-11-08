@@ -27,7 +27,12 @@ cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp "$ROOT/Resources/Welcome.m4a" "$APP/Contents/Resources/Welcome.m4a"
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
 mkdir -p "$APP/Contents/Frameworks"
-ditto "$ROOT/.build/artifacts/meetingtape/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework" "$SPARKLE"
+SPARKLE_ARTIFACTS=("$ROOT"/.build/artifacts/*/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework)
+if [[ ${#SPARKLE_ARTIFACTS[@]} -ne 1 || ! -d "${SPARKLE_ARTIFACTS[0]}" ]]; then
+    echo "Expected one resolved Sparkle framework in .build/artifacts" >&2
+    exit 1
+fi
+ditto "${SPARKLE_ARTIFACTS[0]}" "$SPARKLE"
 TIMESTAMP="--timestamp=none"
 if [[ "$CONFIGURATION" == release ]]; then TIMESTAMP="--timestamp"; fi
 /usr/bin/codesign --force --options runtime "$TIMESTAMP" --sign "$IDENTITY" "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
