@@ -15,7 +15,7 @@ public struct SubtitleOptions: Codable, Sendable, Equatable {
 }
 
 public enum CaptionTranslationState: String, Codable, Sendable {
-    case pending, translated, sameLanguage, failed
+    case pending, translated, sameLanguage, failed, interrupted
 }
 
 public struct CaptionTranslation: Codable, Sendable, Equatable {

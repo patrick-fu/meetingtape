@@ -58,6 +58,59 @@ private actor DelayedCaptionSession: LiveCaptionRunning {
     }
 }
 
+private actor TailTranslationSession: LiveCaptionRunning {
+    let queue: CaptionTranslationQueue
+    let gate = CaptionGate()
+    let sessionID: String
+    private(set) var started = false
+    private(set) var finishing = false
+    init(queue: CaptionTranslationQueue, sessionID: String) { self.queue = queue; self.sessionID = sessionID }
+    func finish(_ value: SessionSnapshot) { finishing = true }
+    func cancel() { Task { await gate.release() } }
+    func run(update: @escaping @Sendable (LiveCaptionArchive) async -> Void) async -> LiveCaptionArchive {
+        started = true
+        await gate.wait()
+        var options = SubtitleOptions(); options.translation = true
+        let segment = LiveCaptionSegment(id: "tail", start: 0, end: 1, text: "late final", final: true, connectionID: "tail", revision: 1)
+        let connection = CaptionConnection(id: "tail", source: .merged, start: 0, end: 1, complete: true, state: "completed")
+        return (try? await queue.receive(mode: .merged, connection: connection, segments: [segment], inputs: [segment], options: options)) ?? LiveCaptionArchive(sessionID: sessionID)
+    }
+}
+
+@Test @MainActor
+func waitingToQuitChecksTranslationsSubmittedByTheLastASRTail() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let retained = root.appendingPathExtension("retained")
+    defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: retained) }
+    let store = LiveCaptionStore(directory: root)
+    var snapshot = SessionSnapshot(recoveryPath: root.path); snapshot.state = .recording
+    var service: TailTranslationSession?
+    let model = LiveCaptionModel(enabled: true, store: store, translator: { _, target, _ in
+        try FileManager.default.moveItem(at: root, to: retained)
+        try Data("unwritable directory".utf8).write(to: root)
+        return CaptionTranslation(targetLanguage: target, text: "未保存尾句", state: .translated, provider: "fixture")
+    }) { value, _, _, queue in
+        let session = TailTranslationSession(queue: queue, sessionID: value.sessionID)
+        service = session; return session
+    }
+    model.observe(snapshot, fromStart: true)
+    do {
+        try await waitForCaption { await service?.started == true }
+        let tail = try #require(service)
+        snapshot.state = .completed; model.observe(snapshot)
+        try await waitForCaption { await tail.finishing }
+        let quitting = Task { await model.shutdown() }
+        try await Task.sleep(for: .milliseconds(80))
+        await tail.gate.release()
+        let saved = await quitting.value
+        try? await tail.queue.drain()
+        #expect(!saved)
+        #expect(model.message?.contains("未保存") == true)
+    } catch {
+        await service?.gate.release(); await model.shutdown(); throw error
+    }
+}
+
 @Test @MainActor
 func compactCaptionFollowsLongSourceRevisionWithoutReorderingArchive() async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("meetingtape-compact-source-\(UUID().uuidString)")
@@ -72,7 +125,7 @@ func compactCaptionFollowsLongSourceRevisionWithoutReorderingArchive() async thr
     snapshot.state = .recording; snapshot.recognitionMode = .separate
     let service = DelayedCaptionSession(id: snapshot.sessionID, text: "夹具", store: store)
     await service.archiveGate.release()
-    let model = LiveCaptionModel(enabled: true, store: store) { _, _, _ in service }
+    let model = LiveCaptionModel(enabled: true, store: store, makeSession: { _, _, _, _ in service })
     model.setTranslationEnabled(true)
     do {
         model.observe(snapshot, fromStart: true)
@@ -108,7 +161,7 @@ func failedLiveSourceCanReconnectWhileOtherSourceContinues() async throws {
     snapshot.state = .recording; snapshot.elapsedSeconds = 30; snapshot.committedSeconds = 20; snapshot.recognitionMode = .separate
     let service = DelayedCaptionSession(id: snapshot.sessionID, text: "仍在录音", store: store)
     await service.archiveGate.release(); await service.failOneSource()
-    let model = LiveCaptionModel(enabled: true, store: store) { _, _, _ in service }
+    let model = LiveCaptionModel(enabled: true, store: store, makeSession: { _, _, _, _ in service })
     model.observe(snapshot, fromStart: true)
     try await waitForCaption { model.canRetry }
     model.retry()
@@ -131,7 +184,7 @@ func staleSourceRetryCannotRestartReplacementRecording() async throws {
     await a.archiveGate.release(); await b.archiveGate.release()
     await a.failOneSource(); await a.delayRetry(gate, result: false)
     var creations = 0
-    let model = LiveCaptionModel(enabled: true, store: store) { value, _, _ in creations += 1; return value.sessionID == first.sessionID ? a : b }
+    let model = LiveCaptionModel(enabled: true, store: store, makeSession: { value, _, _, _ in creations += 1; return value.sessionID == first.sessionID ? a : b })
     do {
         model.observe(first, fromStart: true)
         try await waitForCaption { model.canRetry }
@@ -172,7 +225,7 @@ func newRecordingKeepsPreviousCaptionFinalizationAndOnlyUpdatesItsOwnWindow() as
     let a = DelayedCaptionSession(id: first.sessionID, text: "甲", store: store)
     let b = DelayedCaptionSession(id: next.sessionID, text: "乙", store: store)
     await b.archiveGate.release()
-    let model = LiveCaptionModel(enabled: true, store: store) { value, _, _ in value.sessionID == first.sessionID ? a : b }
+    let model = LiveCaptionModel(enabled: true, store: store, makeSession: { value, _, _, _ in value.sessionID == first.sessionID ? a : b })
     do {
         model.observe(first, fromStart: true)
         try await waitForCaption { await a.started }
@@ -205,7 +258,7 @@ func reconnectWaitsForThePreviousArchiveBeforeReadingItsPrefix() async throws {
     await b.archiveGate.release()
     var count = 0
     var offsets: [Double] = []
-    let model = LiveCaptionModel(enabled: true, store: store) { _, offset, _ in offsets.append(offset); count += 1; return count == 1 ? a : b }
+    let model = LiveCaptionModel(enabled: true, store: store, makeSession: { _, offset, _, _ in offsets.append(offset); count += 1; return count == 1 ? a : b })
     do {
         model.observe(snapshot, fromStart: true)
         try await waitForCaption { model.currentLine == "甲识别中" }

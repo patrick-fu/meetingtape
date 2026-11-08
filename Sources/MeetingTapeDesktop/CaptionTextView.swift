@@ -18,9 +18,11 @@ struct CaptionTextView: View {
                     if segment.text.isEmpty { Text(translation.text ?? "").font(.system(size: 14)).textSelection(.enabled) }
                     Text("无需翻译").font(.system(size: 9)).foregroundStyle(.tertiary)
                 case .pending:
-                    Text("正在翻译…").font(.system(size: 11)).foregroundStyle(.tertiary)
-                case .failed:
-                    Text("翻译暂不可用").font(.system(size: 11)).foregroundStyle(.orange)
+                    if let text = translation.text { Text(text).font(.system(size: 13)).foregroundStyle(.blue.opacity(0.5)).textSelection(.enabled) }
+                    Text(translation.text == nil ? "正在翻译…" : "更新中…").font(.system(size: 11)).foregroundStyle(.tertiary)
+                case .failed, .interrupted:
+                    if let text = translation.text { Text(text).font(.system(size: 13)).foregroundStyle(.secondary).textSelection(.enabled) }
+                    Text(translation.state == .failed ? "翻译暂不可用" : "译文未完成").font(.system(size: 11)).foregroundStyle(.orange)
                 }
             }
         }

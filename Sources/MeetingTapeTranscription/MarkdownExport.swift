@@ -17,9 +17,9 @@ public struct TranscriptExportVersion: Sendable, Identifiable {
         unreadableLive = false
     }
 
-    public init(live: LiveCaptionArchive, unreadable: Bool = false) {
-        id = "live"; title = "豆包实时稿" + (unreadable ? "" : " · " + live.recognitionMode.name)
-        self.live = unreadable ? nil : live; task = nil; run = nil; result = nil
+    public init(live: LiveCaptionArchive, versionID: String? = nil, unreadable: Bool = false) {
+        id = versionID.map { "live:" + $0 } ?? "live"; title = (versionID.flatMap { id in live.translationVersions.first { $0.id == id }?.title } ?? "豆包实时稿") + (unreadable ? "" : " · " + live.recognitionMode.name)
+        self.live = unreadable ? nil : live.viewingTranslationVersion(versionID); task = nil; run = nil; result = nil
         unreadableLive = unreadable
     }
 }
@@ -50,7 +50,10 @@ public struct TranscriptExportSnapshot: Sendable {
             }
         }
         do {
-            if let live = try captions.readSnapshot(sessionID) { versions.append(TranscriptExportVersion(live: live)) }
+            if let live = try captions.readSnapshot(sessionID) {
+                versions.append(TranscriptExportVersion(live: live))
+                versions += live.translationVersions.map { TranscriptExportVersion(live: live, versionID: $0.id) }
+            }
         } catch { versions.append(TranscriptExportVersion(live: LiveCaptionArchive(sessionID: sessionID), unreadable: true)) }
         guard !versions.isEmpty else { throw TranscriptionFailure("这段录音还没有转写版本。") }
         return Self(title: title, versions: versions, duration: tasks.first?.duration ?? versions.compactMap(\.live).first?.coverage.map(\.end).max())
@@ -101,8 +104,12 @@ public struct TranscriptExportSnapshot: Sendable {
                     case .sameLanguage:
                         if segment.text.isEmpty { lines += ["目标语言字幕（\(language)）：" + text(translation.text ?? ""), ""] }
                         lines += ["无需翻译。", ""]
-                    case .pending: lines += ["译文（\(language)）：未取得定稿译文。", ""]
-                    case .failed: lines += ["译文（\(language)）：翻译失败。", ""]
+                    case .pending, .interrupted:
+                        if let old = translation.text { lines += ["上一版译文（\(language)）：" + text(old), ""] }
+                        lines += ["译文（\(language)）：未完成。", ""]
+                    case .failed:
+                        if let old = translation.text { lines += ["上一版译文（\(language)）：" + text(old), ""] }
+                        lines += ["译文（\(language)）：翻译失败。", ""]
                     }
                 }
             }

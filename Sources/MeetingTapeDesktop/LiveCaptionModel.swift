@@ -15,7 +15,7 @@ extension LiveCaptionRunning { func retryFailed(at time: Double) async -> Bool {
 
 @MainActor
 final class LiveCaptionModel: ObservableObject {
-    typealias SessionFactory = @MainActor (SessionSnapshot, Double, LiveCaptionStore) -> any LiveCaptionRunning
+    typealias SessionFactory = @MainActor (SessionSnapshot, Double, LiveCaptionStore, CaptionTranslationQueue) -> any LiveCaptionRunning
     @Published private(set) var enabled: Bool
     @Published private(set) var translationEnabled: Bool
     @Published private(set) var targetLanguage: String
@@ -24,9 +24,11 @@ final class LiveCaptionModel: ObservableObject {
     @Published private(set) var message: String?
     @Published private(set) var connecting = false
     @Published private(set) var archiveRevision = 0
+    @Published private(set) var hasPendingTranslations = false
     let store: LiveCaptionStore
     var onResize: (() -> Void)?
     private let makeSession: SessionFactory?
+    private let translator: CaptionTranslate?
     private struct Job {
         var sessionID: String
         var service: (any LiveCaptionRunning)?
@@ -34,6 +36,8 @@ final class LiveCaptionModel: ObservableObject {
         var finishing = false
     }
     private var jobs: [Int: Job] = [:]
+    private var translationQueues: [String: CaptionTranslationQueue] = [:]
+    private var pendingTranslationSessions: Set<String> = []
     private var current: Int?
     private var revision = 0
     private var acceptedRevision = 0
@@ -44,12 +48,12 @@ final class LiveCaptionModel: ObservableObject {
     private var failedSource = false
     @Published private var retrying: Int?
 
-    init(enabled: Bool? = nil, store: LiveCaptionStore = LiveCaptionStore(), makeSession: SessionFactory? = nil) {
+    init(enabled: Bool? = nil, store: LiveCaptionStore = LiveCaptionStore(), translator: CaptionTranslate? = nil, makeSession: SessionFactory? = nil) {
         self.enabled = enabled ?? UserDefaults.standard.bool(forKey: "liveCaptionsEnabled")
         translationEnabled = enabled == nil && UserDefaults.standard.bool(forKey: "liveTranslationEnabled")
         targetLanguage = UserDefaults.standard.string(forKey: "liveTargetLanguage") ?? "zh-Hans"
         provider = SubtitleTranslationProvider(rawValue: UserDefaults.standard.string(forKey: "liveTranslationProvider") ?? "local") ?? .local
-        self.store = store; self.makeSession = makeSession
+        self.store = store; self.makeSession = makeSession; self.translator = translator
     }
 
     var sessionID: String? { snapshot?.sessionID }
@@ -69,8 +73,9 @@ final class LiveCaptionModel: ObservableObject {
         guard translationEnabled else { return "" }
         guard let value = latest?.translation else { return "等待翻译…" }
         switch value.state {
-        case .pending: return "正在翻译…"
-        case .failed: return "翻译暂不可用"
+        case .pending: return value.text.map { $0 + " · 更新中" } ?? "正在翻译…"
+        case .failed: return value.text.map { $0 + " · 更新失败" } ?? "翻译暂不可用"
+        case .interrupted: return value.text.map { $0 + " · 未完成" } ?? "翻译未完成"
         case .sameLanguage: return enabled ? "无需翻译" : value.text ?? "无需翻译"
         case .translated: return value.text ?? ""
         }
@@ -167,11 +172,22 @@ final class LiveCaptionModel: ObservableObject {
         } else { start(at: now) }
     }
 
-    func shutdown() async {
+    @discardableResult func shutdown(preserveTranslations: Bool = false) async -> Bool {
         let pending = Array(jobs.values)
-        for job in pending where !job.finishing { job.task.cancel(); if let service = job.service { await service.cancel() } }
-        for job in pending { await job.task.value }
+        for job in pending where preserveTranslations || !job.finishing { job.task.cancel(); if let service = job.service { await service.cancel() } }
         await controls?.value
+        if !preserveTranslations { for job in pending { await job.task.value } }
+        var saved = true
+        for queue in translationQueues.values {
+            if preserveTranslations {
+                do { try await queue.preserveUnfinished() }
+                catch { message = "译文任务未保存：\(error.localizedDescription)"; saved = false }
+            } else {
+                do { try await queue.drain() }
+                catch { message = error.localizedDescription; saved = false }
+            }
+        }
+        return saved
     }
 
     private func recordControls(at offset: Double, newObserver: Bool = false) {
@@ -209,13 +225,48 @@ final class LiveCaptionModel: ObservableObject {
             guard let self else { return }
             guard !Task.isCancelled, let value = self.snapshot, value.sessionID == starting.sessionID else { self.finished(id, document: nil); return }
             let begin = offset == 0 && barriers.isEmpty ? 0 : max(offset, self.now)
-            let service = self.makeSession?(value, begin, self.store) ?? LiveCaptionSession(snapshot: value, startAt: begin, store: self.store, options: self.options)
+            let queue: CaptionTranslationQueue
+            if let existing = self.translationQueues[value.sessionID] { queue = existing }
+            else {
+                queue = CaptionTranslationQueue(sessionID: value.sessionID, store: self.store, translator: self.translator, update: { [weak self] archive in
+                    await self?.acceptTranslations(archive)
+                })
+                self.translationQueues[value.sessionID] = queue
+            }
+            let service = self.makeSession?(value, begin, self.store, queue) ?? LiveCaptionSession(snapshot: value, startAt: begin, store: self.store, options: self.options, translationQueue: queue)
             self.jobs[id]?.service = service
             if [.completed, .failed].contains(value.state) { await service.finish(value) }
             let document = await service.run { [weak self] value in await self?.accept(value, id: id) }
             self.finished(id, document: document)
         }
         jobs[id] = Job(sessionID: starting.sessionID, task: task)
+    }
+
+    func refreshArchive() { archiveRevision += 1 }
+
+    func completeTranslations(_ sessionID: String, parentID: String?, includeCompleted: Bool = false) async throws -> String {
+        guard !active || sessionID != self.sessionID else { throw TranscriptionFailure("停止录音后即可补齐译文。") }
+        let queue: CaptionTranslationQueue
+        if let existing = translationQueues[sessionID] { queue = existing }
+        else {
+            queue = CaptionTranslationQueue(sessionID: sessionID, store: store, translator: translator, update: { [weak self] archive in await self?.acceptTranslations(archive) })
+            translationQueues[sessionID] = queue
+        }
+        let versionID = try await queue.complete(parentID: parentID, includeCompleted: includeCompleted)
+        return versionID
+    }
+
+    private func acceptTranslations(_ value: LiveCaptionArchive) {
+        archiveRevision += 1
+        let runs = Set(translationQueues.values.map(\.runID))
+        if value.translationJobs.contains(where: { runs.contains($0.runID) && ($0.state == .queued || $0.state == .running) }) { pendingTranslationSessions.insert(value.sessionID) }
+        else { pendingTranslationSessions.remove(value.sessionID) }
+        hasPendingTranslations = !pendingTranslationSessions.isEmpty
+        guard value.sessionID == snapshot?.sessionID, value.updateRevision >= acceptedRevision else { return }
+        let height = compactHeight
+        acceptedRevision = value.updateRevision
+        segments = value.segments; message = value.message
+        if compactHeight != height { onResize?() }
     }
 
     private func accept(_ value: LiveCaptionArchive, id: Int) {

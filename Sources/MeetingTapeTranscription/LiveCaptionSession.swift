@@ -7,7 +7,8 @@ public actor LiveCaptionSession {
     private let store: LiveCaptionStore
     private let credential: DoubaoCredential?
     private let options: SubtitleOptions
-    private let translator: CaptionTranslate
+    private let translationQueue: CaptionTranslationQueue
+    private let ownsTranslationQueue: Bool
     private var services: [TranscriptSource: LiveSourceCaptionSession] = [:]
     private var tasks: [TranscriptSource: Task<LiveCaptionArchive, Never>] = [:]
     private var completed: SessionSnapshot?
@@ -15,9 +16,11 @@ public actor LiveCaptionSession {
     private var started = false
 
     public init(snapshot: SessionSnapshot, startAt: Double = 0, store: LiveCaptionStore = LiveCaptionStore(), credential: DoubaoCredential? = nil,
-                options: SubtitleOptions = SubtitleOptions(), translator: @escaping CaptionTranslate = { try await TextTranslation.translate($0, target: $1, provider: $2) }) {
+                options: SubtitleOptions = SubtitleOptions(), translationQueue: CaptionTranslationQueue? = nil, translator: CaptionTranslate? = nil) {
         self.snapshot = snapshot; origin = startAt; self.store = store; self.credential = credential
-        self.options = options; self.translator = translator
+        self.options = options
+        self.translationQueue = translationQueue ?? CaptionTranslationQueue(sessionID: snapshot.sessionID, store: store, translator: translator)
+        ownsTranslationQueue = translationQueue == nil
     }
 
     public func finish(_ value: SessionSnapshot) async {
@@ -36,6 +39,7 @@ public actor LiveCaptionSession {
         var document = LiveCaptionArchive(sessionID: snapshot.sessionID)
         guard !started else { return (try? await store.load(snapshot.sessionID)) ?? document }
         started = true
+        if ownsTranslationQueue { await translationQueue.observe(update) }
         do {
             guard origin.isFinite, origin >= 0, origin <= 86400 else { throw TranscriptionFailure("实时字幕的起始时间无效。") }
             if let existing = try await store.load(snapshot.sessionID) { document = existing }
@@ -55,6 +59,15 @@ public actor LiveCaptionSession {
                     break
                 }
                 try? await Task.sleep(for: .milliseconds(100))
+            }
+            if !cancelled {
+                do { try await translationQueue.drain() }
+                catch {
+                    document = (try? await store.load(snapshot.sessionID)) ?? document
+                    document.partial = true; document.message = error.localizedDescription
+                    await update(document)
+                    return document
+                }
             }
             return (try? await store.load(snapshot.sessionID)) ?? document
         } onCancel: { Task { await self.cancel() } }
@@ -76,7 +89,7 @@ public actor LiveCaptionSession {
 
     private func start(_ source: TranscriptSource, at origin: Double, update: @escaping @Sendable (LiveCaptionArchive) async -> Void) async {
         self.update = update
-        let service = LiveSourceCaptionSession(snapshot: snapshot, startAt: origin, source: source, mode: snapshot.recognitionMode ?? .merged, options: options, translator: translator, store: store, credential: credential)
+        let service = LiveSourceCaptionSession(snapshot: snapshot, startAt: origin, source: source, mode: snapshot.recognitionMode ?? .merged, options: options, translationQueue: translationQueue, store: store, credential: credential)
         services[source] = service
         if let completed { await service.finish(completed) }
         if cancelled { await service.cancel() }
@@ -104,16 +117,15 @@ private actor LiveSourceCaptionSession {
     private let source: TranscriptSource
     private let mode: RecognitionMode
     private let options: SubtitleOptions
-    private let translator: CaptionTranslate
+    private let translationQueue: CaptionTranslationQueue
     private var connection: CaptionConnection
     private var drafts: CaptionDraftBuffer
-    private var translations: [String: Task<Void, Never>] = [:]
     private var elapsedStart = 0.0
 
     init(snapshot: SessionSnapshot, startAt: Double, source: TranscriptSource, mode: RecognitionMode,
-         options: SubtitleOptions, translator: @escaping CaptionTranslate, store: LiveCaptionStore, credential: DoubaoCredential?) {
+         options: SubtitleOptions, translationQueue: CaptionTranslationQueue, store: LiveCaptionStore, credential: DoubaoCredential?) {
         self.snapshot = snapshot; origin = startAt; self.source = source; self.mode = mode
-        self.options = options; self.translator = translator; self.store = store; self.credential = credential
+        self.options = options; self.translationQueue = translationQueue; self.store = store; self.credential = credential
         connection = CaptionConnection(id: UUID().uuidString.lowercased(), source: source, start: startAt, end: startAt, complete: false, state: "connecting")
         document = LiveCaptionArchive(sessionID: snapshot.sessionID)
         drafts = CaptionDraftBuffer(connectionID: connection.id, source: source, options: options)
@@ -126,7 +138,6 @@ private actor LiveSourceCaptionSession {
 
     public func cancel() {
         cancelled = true
-        for task in translations.values { task.cancel() }
         socket?.cancel(with: .normalClosure, reason: nil)
     }
 
@@ -225,7 +236,6 @@ private actor LiveSourceCaptionSession {
             }
             await receiver.value; deadline.cancel()
             guard serverFinal else { throw TranscriptionFailure(receiveFailure ?? "字幕尾句未完成，已保留现有文字。") }
-            for pending in Array(translations.values) { await pending.value }
             document.complete = !document.partial && document.segments.allSatisfy(\.final)
             if !document.complete { document.message = "这份实时字幕包含未转写或未定稿的区间。" }
         } catch {
@@ -236,7 +246,6 @@ private actor LiveSourceCaptionSession {
         connection.complete = document.complete
         connection.state = cancelled ? "cancelled" : document.complete ? "completed" : "failed"
         connection.elapsedSeconds = elapsedStart > 0 ? max(0, ProcessInfo.processInfo.systemUptime - elapsedStart) : nil
-        for task in translations.values { task.cancel() }
         drafts.discardOriginals()
         do {
             let saved = try await persist()
@@ -259,13 +268,12 @@ private actor LiveSourceCaptionSession {
                 case .string(let text): data = Data(text.utf8)
                 @unknown default: throw TranscriptionFailure("实时字幕响应类型不兼容。")
                 }
+                guard !cancelled, !Task.isCancelled else { return }
                 let frame = try DoubaoLiveCodec.decode(data, origin: origin)
                 if frame.hasResult {
                     let pending = drafts.receive(frame.segments)
                     document.segments = drafts.segments
-                    let present = Set(document.segments.map(\.id))
-                    for (id, task) in translations where !present.contains(id) { task.cancel(); translations.removeValue(forKey: id) }
-                    for raw in pending { schedule(raw, update: update) }
+                    _ = try await translationQueue.receive(mode: mode, connection: self.connection, segments: document.segments, inputs: pending, options: options)
                     guard document.segments.count <= 20_000 else { throw TranscriptionFailure("实时字幕已达到单次文本上限，录音继续。") }
                 }
                 await update(try await persist())
@@ -282,31 +290,6 @@ private actor LiveSourceCaptionSession {
 
     private func persist() async throws -> LiveCaptionArchive {
         try await store.updateConnection(snapshot.sessionID, mode: mode, connection: connection, segments: document.segments)
-    }
-
-    private func schedule(_ raw: LiveCaptionSegment, update: @escaping @Sendable (LiveCaptionArchive) async -> Void) {
-        translations[raw.id]?.cancel()
-        let options = self.options, translator = self.translator
-        translations[raw.id] = Task {
-            do {
-                if !raw.final { try await Task.sleep(for: .milliseconds(450)) }
-                try Task.checkCancellation()
-                let translated = try await translator(raw.text, options.targetLanguage, options.provider)
-                try Task.checkCancellation()
-                await apply(translated, raw: raw, update: update)
-            } catch {
-                if !Task.isCancelled {
-                    await apply(CaptionTranslation(targetLanguage: options.targetLanguage, state: .failed, provider: options.provider.rawValue), raw: raw, update: update)
-                }
-            }
-        }
-    }
-
-    private func apply(_ value: CaptionTranslation, raw: LiveCaptionSegment, update: @escaping @Sendable (LiveCaptionArchive) async -> Void) async {
-        guard !cancelled, drafts.apply(value, id: raw.id, revision: raw.revision) else { return }
-        document.segments = drafts.segments
-        do { await update(try await persist()) }
-        catch { receiveFailure = "字幕保存失败，已停止更新以保留原稿。" }
     }
 
     private func send(_ bytes: Data, on connection: URLSessionWebSocketTask) async throws {
