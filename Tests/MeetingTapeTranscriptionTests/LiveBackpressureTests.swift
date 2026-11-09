@@ -27,6 +27,7 @@ func aSlowLocalRunnerPublishesWhileCommittedAudioRemainsQueued() async throws {
     let deadline = Date().addingTimeInterval(3)
     while Date() < deadline, !(await gate.observed) { try await Task.sleep(for: .milliseconds(50)) }
     let observed = await gate.observed
-    consumer.cancel(); _ = await consumer.value
+    consumer.cancel(); let archived = await consumer.value
     #expect(observed)
+    #expect(archived.connections.count == 1 && archived.connections[0].state == "cancelled")
 }

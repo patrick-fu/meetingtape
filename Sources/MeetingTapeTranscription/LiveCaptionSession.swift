@@ -259,8 +259,9 @@ private actor LiveSourceCaptionSession {
             document.complete = !document.partial && document.segments.allSatisfy(\.final)
             if !document.complete { document.message = "这份实时字幕包含未转写或未定稿的区间。" }
         } catch {
+            cancelled = cancelled || Task.isCancelled || error is CancellationError
             document.complete = false; document.partial = true
-            document.message = cancelled || error is CancellationError ? "实时字幕已结束，已保留当前文字。" : error.localizedDescription
+            document.message = cancelled ? "实时字幕已结束，已保留当前文字。" : error.localizedDescription
         }
         socket?.cancel(with: .normalClosure, reason: nil); socket = nil
         connection.complete = document.complete

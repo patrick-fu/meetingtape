@@ -97,3 +97,15 @@ func aNeverEnabledCaptionFeatureKeepsTheSelectedFeatureComplete(translationOnly:
     let markdown = try TranscriptExportSnapshot(title: "中途接管", versions: [TranscriptExportVersion(live: document)]).markdown(primary: "live")
     #expect(markdown.contains("历史未记录") && markdown.contains("状态：部分字幕"))
 }
+
+@Test(arguments: [
+    ("今天下午", "zh-Hans", "今天下午", false),
+    ("我們開會", "zh-Hans", "我们开会", true),
+    ("我们开会", "zh-Hant", "我們開會", true)
+])
+func chineseCaptionsUseTheirTargetScriptWithoutAnotherTranslationLanguage(_ input: String, _ target: String, _ expected: String, _ converted: Bool) async throws {
+    let result = try await TextTranslation.translate(input, target: target, provider: .local)
+    #expect(result.state == (converted ? .translated : .sameLanguage))
+    #expect((result.text ?? input) == expected)
+    #expect(result.provider == (converted ? "unicode-script-conversion" : "language-detection"))
+}
