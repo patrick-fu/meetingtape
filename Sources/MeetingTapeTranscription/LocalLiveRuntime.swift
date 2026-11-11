@@ -94,6 +94,8 @@ final class LocalLiveProcess: @unchecked Sendable {
         process.standardInput = standardInput; process.standardOutput = output; process.standardError = errors
         var continuation: AsyncThrowingStream<LocalLiveEvent, any Error>.Continuation!
         events = AsyncThrowingStream { continuation = $0 }
+        let exited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exited.signal() }
         do { try process.run() }
         catch { try? input.close(); try? output.fileHandleForWriting.close(); try? errors.fileHandleForWriting.close(); throw error }
         try? standardInput.fileHandleForReading.close(); try? output.fileHandleForWriting.close(); try? errors.fileHandleForWriting.close()
@@ -121,7 +123,7 @@ final class LocalLiveProcess: @unchecked Sendable {
                         stream.yield(event)
                     }
                 }
-                process.waitUntilExit()
+                exited.wait()
                 guard buffer.isEmpty, finished, process.terminationStatus == 0 else { throw TranscriptionFailure("本地字幕进程未正常收尾，已保留现有文字。") }
                 stream.finish()
             } catch { stream.finish(throwing: error) }
