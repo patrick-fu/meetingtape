@@ -104,11 +104,41 @@ private struct PanelDragRegion: NSViewRepresentable {
     func updateNSView(_ view: DragView, context: Context) {}
 }
 
+// 两路（原文/译文）各缓存最近一次输入与裁出的尾部：计时/电平刷新同文字时不再全量排版。键仅 false/true，天然有界；同步计算，命中即返回，不产生首帧旧文字。
+private final class CompactTailCache {
+    private var slots: [Bool: (input: String, output: String)] = [:]
+
+    func tail(_ text: String, translation: Bool) -> String {
+        if let hit = slots[translation], hit.input == text { return hit.output }
+        let output = Self.layoutTail(text)
+        slots[translation] = (text, output)
+        return output
+    }
+
+    // 紧凑窗正文宽 176（196 减左右各 10），与 Text 排版同宽同字号；裁出末尾两行，让长句最新文字留在可视区。
+    private static func layoutTail(_ text: String) -> String {
+        let storage = NSTextStorage(string: text, attributes: [.font: NSFont.systemFont(ofSize: 11)])
+        let layout = NSLayoutManager()
+        let container = NSTextContainer(size: CGSize(width: 176, height: CGFloat.greatestFiniteMagnitude))
+        container.lineFragmentPadding = 0
+        layout.addTextContainer(container)
+        storage.addLayoutManager(layout)
+        layout.ensureLayout(for: container)
+        var starts: [Int] = []
+        layout.enumerateLineFragments(forGlyphRange: layout.glyphRange(for: container)) { _, _, _, range, _ in
+            starts.append(layout.characterRange(forGlyphRange: range, actualGlyphRange: nil).location)
+        }
+        guard starts.count > 2 else { return text }
+        return (text as NSString).substring(from: starts[starts.count - 2])
+    }
+}
+
 private struct RecordingPanelView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var captions: LiveCaptionModel
     @State private var following = true
     @State private var hasNewCaptions = false
+    @State private var tailCache = CompactTailCache()
     private var elapsed: Double { model.snapshot?.elapsedSeconds ?? 0 }
     private var stopping: Bool { model.operation != nil || model.snapshot?.state == .finalizing || model.snapshot?.state == .stopping }
     private var captureIssue: String? {
@@ -148,11 +178,13 @@ private struct RecordingPanelView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     if let latest = captions.latest { Text(latest.source.name + (captions.lagSeconds >= 2 ? " · 落后 \(Int(captions.lagSeconds)) 秒" : "")).font(.system(size: 8)).foregroundStyle(.secondary) }
                     if captions.enabled {
-                        Text(captions.currentLine).font(.system(size: 11)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(tailCache.tail(captions.currentLine, translation: false)).font(.system(size: 11)).lineLimit(2).truncationMode(.head).frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityLabel(captions.currentLine)
                             .background(alignment: .topLeading) { displayAcknowledgement(translation: false) }
                     }
                     if captions.translationEnabled {
-                        Text(captions.translationLine).font(.system(size: 11)).lineLimit(2).foregroundStyle(.blue.opacity(captions.latest?.translation?.state == .pending ? 0.5 : 1)).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(tailCache.tail(captions.translationLine, translation: true)).font(.system(size: 11)).lineLimit(2).truncationMode(.head).foregroundStyle(.blue.opacity(captions.latest?.translation?.state == .pending ? 0.5 : 1)).frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityLabel(captions.translationLine)
                             .background(alignment: .topLeading) { displayAcknowledgement(translation: true) }
                     }
                 }.padding(.horizontal, 10).padding(.top, 2).padding(.bottom, 4).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
