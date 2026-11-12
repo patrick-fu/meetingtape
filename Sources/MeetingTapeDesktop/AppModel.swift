@@ -134,7 +134,12 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func flush() async { onboardingPlayback.stop(); await saveTask?.value; await liveCaptions.shutdown() }
+    @discardableResult func flush(preserveTranslations: Bool = false) async -> Bool {
+        onboardingPlayback.stop(); await saveTask?.value
+        let saved = await liveCaptions.shutdown(preserveTranslations: preserveTranslations)
+        if !saved { errorMessage = liveCaptions.message; onChange?() }
+        return saved
+    }
 
     func refreshLibrary() async {
         var directories = defaults.stringArray(forKey: "recordingDirectories") ?? []

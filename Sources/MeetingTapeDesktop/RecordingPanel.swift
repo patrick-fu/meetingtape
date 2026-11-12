@@ -148,7 +148,7 @@ private struct RecordingPanelView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     if let latest = captions.latest { Text(latest.source.name).font(.system(size: 8)).foregroundStyle(.secondary) }
                     if captions.enabled { Text(captions.currentLine).font(.system(size: 11)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading) }
-                    if captions.translationEnabled { Text(captions.translationLine).font(.system(size: 11)).lineLimit(2).foregroundStyle(.blue).frame(maxWidth: .infinity, alignment: .leading) }
+                    if captions.translationEnabled { Text(captions.translationLine).font(.system(size: 11)).lineLimit(2).foregroundStyle(.blue.opacity(captions.latest?.translation?.state == .pending ? 0.5 : 1)).frame(maxWidth: .infinity, alignment: .leading) }
                 }.padding(.horizontal, 10).padding(.top, 2).padding(.bottom, 4).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }

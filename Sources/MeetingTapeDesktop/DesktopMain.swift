@@ -127,6 +127,19 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
             alert.runModal()
             return .terminateCancel
         }
+        var preserveTranslations = false
+        if model.liveCaptions.hasPendingTranslations {
+            let alert = NSAlert()
+            alert.messageText = "字幕翻译正在收尾"
+            alert.addButton(withTitle: "等待完成并退出")
+            alert.addButton(withTitle: "立即退出")
+            alert.addButton(withTitle: "取消")
+            switch alert.runModal() {
+            case .alertFirstButtonReturn: break
+            case .alertSecondButtonReturn: preserveTranslations = true
+            default: return .terminateCancel
+            }
+        }
         if model.active {
             let alert = NSAlert()
             alert.messageText = "录音仍在进行"
@@ -139,9 +152,9 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
                 terminationPending = true
                 Task {
                     let stopped = await model.stop()
-                    await model.flush()
+                    let saved = await model.flush(preserveTranslations: preserveTranslations)
                     terminationPending = false
-                    sender.reply(toApplicationShouldTerminate: stopped)
+                    sender.reply(toApplicationShouldTerminate: stopped && saved)
                 }
                 return .terminateLater
             case .alertSecondButtonReturn: break
@@ -150,9 +163,8 @@ final class DesktopDelegate: NSObject, NSApplicationDelegate {
         }
         terminationPending = true
         Task {
-            await model.flush()
-            var ready = true
-            if updater.installationPending { ready = await model.readyForUpdateExit() }
+            var ready = await model.flush(preserveTranslations: preserveTranslations)
+            if ready, updater.installationPending { ready = await model.readyForUpdateExit() }
             if !ready { updater.cancelTerminationWhileBusy(); terminationPending = false }
             sender.reply(toApplicationShouldTerminate: ready)
         }
