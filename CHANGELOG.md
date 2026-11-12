@@ -1,5 +1,24 @@
 # Change Log
 
+## v0.4.0 — 2026-11-12
+
+- Add SenseVoice on-device live captions, with installation and repair from Settings or CLI.\
+  新增 SenseVoice 本地实时字幕，可从设置或 CLI 安装、验证与修复模型。
+- Keep translation work across caption reconnects and setting changes; complete missing translations after restart as a separate version.\
+  字幕重连或切换设置时保留翻译任务，重启后可补齐缺失译文并保存为独立版本。
+- Generate editable meeting notes with version history and citations back to the transcript and audio, using local or BYOK text models.\
+  支持用本地或自备 Key 的文字模型生成可编辑会议纪要，保留版本历史，引用可定位到原文与录音。
+- Confirm names, terms, aliases, and translations for one recording or the whole library.\
+  支持确认人名、术语、别名与译名，可应用于单份录音或整个资料库。
+- Show per-source recognition and translation timing, request states, and local runner CPU and memory in the App, CLI, and Markdown export.\
+  App、CLI 与 Markdown 导出统一展示分音源识别及翻译耗时、请求状态，以及本地识别进程的 CPU 与内存开销。
+- Keep long captions on the latest words in the compact window, preserve full history, and convert Chinese captions to the selected script.\
+  小窗长字幕跟随最新文字，保留完整历史，并按所选简繁体显示中文字幕。
+- Finish local-caption connections after stopping so exports and normal App shutdown can complete.\
+  修复停止录音后本地字幕连接无法收尾、进而阻塞导出或正常退出的问题。
+- Report an error when local MOSS decoding exhausts its generation budget instead of publishing repeated text as a successful transcript.\
+  本地 MOSS 解码耗尽生成额度时明确报错，不再将重复文本作为成功转写结果。
+
 ## v0.3.0 — 2026-11-06
 
 - Start with a guided sample, recording permissions, and model setup. Skip setup when ready, or reopen it from General settings.\

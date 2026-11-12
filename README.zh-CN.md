@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.3.0/MeetingTape-0.3.0-arm64.dmg"><strong>下载 Apple Silicon 版</strong></a>
-  &nbsp;·&nbsp; v0.3.0
+  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.4.0/MeetingTape-0.4.0-arm64.dmg"><strong>下载 Apple Silicon 版</strong></a>
+  &nbsp;·&nbsp; v0.4.0
 </p>
 
 <p align="center">
@@ -44,7 +44,7 @@ MeetingTape 录制系统声音和麦克风，通过字幕让你跟随对话，�
 
 逐字稿与音频并排显示，点击任意时间点即可回到对应片段。麦克风与系统声音可以分别转写，指定以哪一版为主，并比较不同模型生成的版本。最后按需选择版本，导出为一份 Markdown 文档。
 
-你可以使用 Qwen 或 MOSS 在本机完成转写，也可以填写自己的豆包密钥使用云端转写；Apple 的设备端翻译让字幕就在手边。
+你可以使用 SenseVoice 显示本地实时字幕，用 Qwen 或 MOSS 转写录音，也可以填写自己的豆包密钥使用云端转写；Apple 的设备端翻译让字幕就在手边。
 
 ## 几分钟内开始使用
 
@@ -55,7 +55,7 @@ MeetingTape 录制系统声音和麦克风，通过字幕让你跟随对话，�
 需要一台运行 macOS 14.2 或更高版本的 Apple Silicon Mac。
 
 <p align="center">
-  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.3.0/MeetingTape-0.3.0-arm64.dmg"><strong>获取 MeetingTape</strong></a>
+  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.4.0/MeetingTape-0.4.0-arm64.dmg"><strong>获取 MeetingTape</strong></a>
 </p>
 
 ---
@@ -63,7 +63,7 @@ MeetingTape 录制系统声音和麦克风，通过字幕让你跟随对话，�
 <p align="center">
   <a href="docs/distribution.md">使用指南</a> ·
   <a href="docs/transcription.md">转写设置</a> ·
-  <a href="https://github.com/patrick-fu/meetingtape/releases/tag/v0.3.0">版本说明</a> ·
+  <a href="https://github.com/patrick-fu/meetingtape/releases/tag/v0.4.0">版本说明</a> ·
   <a href="CONTRIBUTING.md">贡献指南</a> ·
   <a href="LICENSE">MIT 许可证</a>
 </p>
