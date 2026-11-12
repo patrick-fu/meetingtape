@@ -32,7 +32,10 @@ with tempfile.TemporaryDirectory(prefix="meetingtape-update-feed-") as directory
 if info["CFBundleShortVersionString"] != version:
     raise SystemExit("The final DMG App version must match the release.")
 
-tools = root / ".build/artifacts/meetingtape/Sparkle/bin"
+tool_directories = list((root / ".build/artifacts").glob("*/Sparkle/bin"))
+if len(tool_directories) != 1 or not tool_directories[0].is_dir():
+    raise SystemExit("Expected one resolved Sparkle tools directory in .build/artifacts")
+tools = tool_directories[0]
 account = "com.paaatrickfu.meetingtape"
 public_key = subprocess.check_output([str(tools / "generate_keys"), "--account", account, "-p"], text=True).strip()
 if public_key != info["SUPublicEDKey"]:
