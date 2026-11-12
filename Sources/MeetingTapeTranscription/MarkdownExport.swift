@@ -7,20 +7,27 @@ public struct TranscriptExportVersion: Sendable, Identifiable {
     let run: TranscriptRun?
     let result: TranscriptResult?
     let live: LiveCaptionArchive?
+    let minutes: MeetingMinutesVersion?
     fileprivate let unreadableLive: Bool
     public var exportable: Bool { !unreadableLive && (result != nil || live != nil || run?.state != .succeeded) }
 
     public init(task: TranscriptionTask, run: TranscriptRun, result: TranscriptResult?) {
         id = task.id + ":" + run.model.rawValue
         title = "\(run.model.name) · 录后 · \(task.recognitionMode.name) · \(task.createdAt) · \(task.id.prefix(8))"
-        self.task = task; self.run = run; self.result = result; live = nil
+        self.task = task; self.run = run; self.result = result; live = nil; minutes = nil
         unreadableLive = false
     }
 
     public init(live: LiveCaptionArchive, versionID: String? = nil, unreadable: Bool = false) {
-        id = versionID.map { "live:" + $0 } ?? "live"; title = (versionID.flatMap { id in live.translationVersions.first { $0.id == id }?.title } ?? "豆包实时稿") + (unreadable ? "" : " · " + live.recognitionMode.name)
-        self.live = unreadable ? nil : live.viewingTranslationVersion(versionID); task = nil; run = nil; result = nil
+        id = versionID.map { "live:" + $0 } ?? "live"; title = (versionID.flatMap { id in live.translationVersions.first { $0.id == id }?.title } ?? "实时字幕") + (unreadable ? "" : " · " + live.recognitionMode.name)
+        self.live = unreadable ? nil : live.viewingTranslationVersion(versionID); task = nil; run = nil; result = nil; minutes = nil
         unreadableLive = unreadable
+    }
+
+    public init(minutes: MeetingMinutesVersion) {
+        id = "minutes:" + minutes.id
+        title = "会议纪要 · " + minutes.model + " · " + minutes.createdAt.formatted(date: .abbreviated, time: .shortened)
+        self.minutes = minutes; task = nil; run = nil; result = nil; live = nil; unreadableLive = false
     }
 }
 
@@ -28,12 +35,18 @@ public struct TranscriptExportSnapshot: Sendable {
     public var title: String
     public let versions: [TranscriptExportVersion]
     public let duration: Double?
+    public let confirmedTerms: [ConfirmedTerm]
 
-    public init(title: String, versions: [TranscriptExportVersion], duration: Double? = nil) {
+    public init(title: String, versions: [TranscriptExportVersion], duration: Double? = nil, confirmedTerms: [ConfirmedTerm] = [], sessionID: String? = nil) {
         self.title = title; self.versions = versions; self.duration = duration
+        self.confirmedTerms = confirmedTerms.map { term in
+            var value = term
+            if let sessionID { value.references = value.references.filter { $0.sessionID.flatMap(UUID.init(uuidString:)) == UUID(uuidString: sessionID) } }
+            return value
+        }
     }
 
-    public static func load(_ recording: String, title: String = "录音转写", store: TranscriptionStore? = nil, captions: LiveCaptionStore = LiveCaptionStore()) throws -> Self {
+    public static func load(_ recording: String, title: String = "录音转写", store: TranscriptionStore? = nil, captions: LiveCaptionStore = LiveCaptionStore(), includeContent: Bool = true) throws -> Self {
         let store = try store ?? TranscriptionStore()
         guard UUID(uuidString: recording) != nil else { throw TranscriptionFailure("请指定录音或转写任务 ID。") }
         let selected = FileManager.default.fileExists(atPath: try store.taskDirectory(recording).appendingPathComponent("task.json").path) ? try store.task(recording) : nil
@@ -55,8 +68,10 @@ public struct TranscriptExportSnapshot: Sendable {
                 versions += live.translationVersions.map { TranscriptExportVersion(live: live, versionID: $0.id) }
             }
         } catch { versions.append(TranscriptExportVersion(live: LiveCaptionArchive(sessionID: sessionID), unreadable: true)) }
+        if includeContent { versions += try MeetingMinutesStore().readSnapshot(sessionID: sessionID).map { TranscriptExportVersion(minutes: $0) } }
         guard !versions.isEmpty else { throw TranscriptionFailure("这段录音还没有转写版本。") }
-        return Self(title: title, versions: versions, duration: tasks.first?.duration ?? versions.compactMap(\.live).first?.coverage.map(\.end).max())
+        let terms = includeContent ? try ConfirmedTermStore().effective(recordingID: sessionID).terms : []
+        return Self(title: title, versions: versions, duration: tasks.first?.duration ?? versions.compactMap(\.live).first?.coverage.map(\.end).max(), confirmedTerms: terms, sessionID: sessionID)
     }
 
     public func markdown(primary: String, includeVersions: Bool = false) throws -> String {
@@ -72,10 +87,23 @@ public struct TranscriptExportSnapshot: Sendable {
         lines += ["", "<details>", "<summary>运行统计</summary>", ""]
         for version in included { lines += Self.statistics(version) }
         lines += ["", "</details>", ""]
+        if !confirmedTerms.isEmpty {
+            lines += ["<details>", "<summary>已确认术语</summary>", ""]
+            for term in confirmedTerms {
+                lines += ["- **" + Self.text(term.canonical) + "**"]
+                if !term.aliases.isEmpty { lines += ["  别名：" + term.aliases.map(Self.text).joined(separator: "、")] }
+                if !term.note.isEmpty { lines += ["  " + Self.text(term.note)] }
+                if term.preserveOriginal { lines += ["  翻译时保留原文。"] }
+                for language in term.translations.keys.sorted() { lines += ["  " + Self.text(language) + "：" + Self.text(term.translations[language]!)] }
+                for reference in term.references { lines += ["  来源：" + Self.text(reference.model) + " · " + Self.time(reference.start) + " · " + Self.text(reference.text)] }
+            }
+            lines += ["", "</details>", ""]
+        }
         return lines.joined(separator: "\n")
     }
 
     private static func body(_ version: TranscriptExportVersion) -> [String] {
+        if let minutes = version.minutes { return [minutes.markdown()] }
         if version.unreadableLive { return ["状态：实时归档不可读取，原文件已保留。", ""] }
         var lines: [String] = []
         if let run = version.run {
@@ -135,6 +163,11 @@ public struct TranscriptExportSnapshot: Sendable {
 
     private static func statistics(_ version: TranscriptExportVersion) -> [String] {
         var lines = ["### " + text(version.title), ""]
+        if let minutes = version.minutes {
+            lines += ["- 纪要生成 · " + text(minutes.provider) + " · " + text(minutes.model) + "：耗时 " + seconds(minutes.elapsedSeconds)]
+            if let usage = minutes.usage { lines += usage.keys.sorted().map { "- " + text($0) + "：\(usage[$0]!) tokens" } }
+            return lines + [""]
+        }
         if version.unreadableLive { return lines + ["实时归档不可读取，统计不可得。", ""] }
         guard let run = version.run, let task = version.task else {
             if let live = version.live {

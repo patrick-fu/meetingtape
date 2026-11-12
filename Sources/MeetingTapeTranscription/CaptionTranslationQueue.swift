@@ -26,6 +26,7 @@ public struct CaptionTranslationJob: Codable, Sendable, Equatable, Identifiable 
     public var final: Bool
     public var targetLanguage: String
     public var provider: SubtitleTranslationProvider
+    public var glossary: [String: String]?
     public var state: CaptionTranslationJobState = .queued
     public var queuedAt = Date()
     public var readyAt = Date()
@@ -71,7 +72,7 @@ public actor CaptionTranslationQueue {
     public init(sessionID: String, store: LiveCaptionStore, translator: CaptionTranslate? = nil, update: @escaping @Sendable (LiveCaptionArchive) async -> Void = { _ in }) {
         self.sessionID = sessionID; self.store = store; self.update = update
         if let translator { self.translator = { try await translator($0.input, $0.targetLanguage, $0.provider) } }
-        else { self.translator = { try await TextTranslation.translate($0.input, target: $0.targetLanguage, provider: $0.provider, credential: nil, requestID: $0.attempts.last?.id) } }
+        else { self.translator = { try await TextTranslation.translate($0.input, target: $0.targetLanguage, provider: $0.provider, credential: nil, requestID: $0.attempts.last?.id, glossary: $0.glossary ?? [:]) } }
     }
 
     func observe(_ update: @escaping @Sendable (LiveCaptionArchive) async -> Void) { self.update = update }
@@ -173,13 +174,13 @@ extension LiveCaptionArchive {
         return value
     }
 
-    mutating func enqueueTranslations(_ inputs: [LiveCaptionSegment], options: SubtitleOptions, runID: String) {
+    mutating func enqueueTranslations(_ inputs: [LiveCaptionSegment], options: SubtitleOptions, runID: String, glossary: [String: String]) {
         for raw in inputs where !raw.text.isEmpty {
             guard !translationJobs.contains(where: { $0.versionID == nil && $0.segmentID == raw.id && $0.revision == raw.revision && $0.targetLanguage == options.targetLanguage && $0.provider == options.provider }) else { continue }
             for i in translationJobs.indices where translationJobs[i].versionID == nil && translationJobs[i].segmentID == raw.id && !translationJobs[i].final && [.queued, .running].contains(translationJobs[i].state) {
                 translationJobs[i].state = .superseded
             }
-            translationJobs.append(CaptionTranslationJob(runID: runID, segmentID: raw.id, revision: raw.revision, source: raw.source, input: raw.text, final: raw.final, targetLanguage: options.targetLanguage, provider: options.provider))
+            translationJobs.append(CaptionTranslationJob(runID: runID, segmentID: raw.id, revision: raw.revision, source: raw.source, input: raw.text, final: raw.final, targetLanguage: options.targetLanguage, provider: options.provider, glossary: glossary))
         }
     }
 
@@ -291,6 +292,7 @@ extension LiveCaptionStore {
             guard var job = lineage.lazy.compactMap({ ancestor in value.translationJobs.last { $0.versionID == ancestor && $0.segmentID == segment.id && $0.revision == segment.revision } }).first, !job.input.isEmpty else { continue }
             job.id = UUID().uuidString.lowercased(); job.versionID = operationID; job.runID = runID
             job.state = .queued; job.attempts = []; job.result = nil; job.message = nil; job.queuedAt = Date(); job.readyAt = Date()
+            job.glossary = try ConfirmedTermStore().effective(recordingID: sessionID).glossary(target: job.targetLanguage)
             jobs.append(job)
         }
         guard !jobs.isEmpty else { throw TranscriptionFailure("此版本没有可恢复的翻译输入。") }

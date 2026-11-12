@@ -154,7 +154,8 @@ public actor LiveCaptionStore {
         else { value.connections.append(connection) }
         if let options, options.translation {
             value.schemaVersion = 3
-            value.enqueueTranslations(translationInputs, options: options, runID: runID)
+            let glossary = translationInputs.isEmpty ? [:] : try ConfirmedTermStore().effective(recordingID: sessionID).glossary(target: options.targetLanguage)
+            value.enqueueTranslations(translationInputs, options: options, runID: runID, glossary: glossary)
         }
         value.projectTranslations(); value.refreshCompletion()
         value.updateRevision += 1

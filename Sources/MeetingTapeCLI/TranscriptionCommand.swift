@@ -14,7 +14,7 @@ enum TranscriptionCommand {
     meetingtape transcribe status <task-id>
     meetingtape transcribe result <task-id> <qwen|moss|doubao> [--text]
     meetingtape transcribe retry <task-id> <qwen|moss|doubao> [--source system|microphone|merged]
-    meetingtape transcribe export <session-id|task-id> --primary live|live:<version-id>|<task-id>:<model> [--include-versions] [--title <title>] [--output <file.md>]
+    meetingtape transcribe export <session-id|task-id> --primary live|live:<version-id>|minutes:<version-id>|<task-id>:<model> [--include-versions] [--title <title>] [--output <file.md>]
 
     Commands return schema-based JSON. Settings and credentials are read from stdin
     when explicitly requested. Credentials use macOS Keychain; values are never returned.

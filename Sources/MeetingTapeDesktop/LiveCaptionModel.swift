@@ -190,6 +190,15 @@ final class LiveCaptionModel: ObservableObject {
         return saved
     }
 
+    func waitForSources(_ sessionID: String) async throws {
+        let controls = self.controls
+        let pending = jobs.values.filter { $0.sessionID == sessionID }.map(\.task)
+        await controls?.value
+        for job in pending { await job.value }
+        try Task.checkCancellation()
+        try await translationQueues[sessionID]?.drain()
+    }
+
     private func recordControls(at offset: Double, newObserver: Bool = false) {
         guard let snapshot else { return }
         let previous = controls, store = self.store, options = self.options

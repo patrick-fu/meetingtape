@@ -29,10 +29,15 @@ private actor DelayedCaptionSession: LiveCaptionRunning {
     private var retryGate: CaptionGate?
     private var retryResult = true
     private var update: (@Sendable (LiveCaptionArchive) async -> Void)?
+    private var finishOnCancel = false
 
     init(id: String, text: String, store: LiveCaptionStore) { self.id = id; self.text = text; self.store = store }
     func finish(_ value: SessionSnapshot) { finishing = true; Task { await stopGate.release() } }
-    func cancel() { cancelled = true; Task { await stopGate.release() } }
+    func cancel() async {
+        cancelled = true; await stopGate.release()
+        if finishOnCancel { await archiveGate.release(); try? await Task.sleep(for: .milliseconds(100)) }
+    }
+    func finishDuringCancellation() { finishOnCancel = true }
     func failOneSource() { simulateSourceFailure = true }
     func delayRetry(_ gate: CaptionGate, result: Bool) { retryGate = gate; retryResult = result }
     func publish(_ value: LiveCaptionArchive) async { await update?(value) }
@@ -213,6 +218,90 @@ private func waitForCaption(_ condition: @escaping @MainActor () async -> Bool) 
         try await Task.sleep(for: .milliseconds(20))
     }
     throw NSError(domain: "LiveCaptionTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "字幕时序未在期限内完成"])
+}
+
+@Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["MEETINGTAPE_MINUTES_LIFECYCLE_ENDPOINT"] != nil)) @MainActor
+struct AutomaticMinutesLifecycle {
+    @Test(.serialized, arguments: ["live", "post", "preserve", "resume"])
+    func automaticNotesWaitForTailAndRespectQuit(_ mode: String) async throws {
+        let library = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["MEETINGTAPE_LIBRARY_DIR"]))
+        _ = try #require(ProcessInfo.processInfo.environment["MEETINGTAPE_TRANSCRIPTION_DIR"])
+        var settings = TextModelSettings()
+        settings.local = TextModelConnection(baseURL: try #require(ProcessInfo.processInfo.environment["MEETINGTAPE_MINUTES_LIFECYCLE_ENDPOINT"]), model: "synthetic-minutes")
+        try TextModelConfiguration().save(settings)
+        let taskStore = try TranscriptionStore()
+        var post = try taskStore.settings(); post.automatic = mode == "post"; try taskStore.saveSettings(post)
+        let store = LiveCaptionStore()
+        var snapshot = SessionSnapshot(recoveryPath: FileManager.default.temporaryDirectory.path)
+        snapshot.state = .recording
+        let service = DelayedCaptionSession(id: snapshot.sessionID, text: mode, store: store)
+        let firstID = snapshot.sessionID
+        var next = SessionSnapshot(recoveryPath: FileManager.default.temporaryDirectory.path)
+        next.state = .recording
+        let successor = DelayedCaptionSession(id: next.sessionID, text: "resume-next", store: store)
+        let captions = LiveCaptionModel(enabled: true, store: store, makeSession: { value, _, _, _ in value.sessionID == firstID ? service : successor })
+        let app = AppModel(liveCaptions: captions)
+        let transcription = app.transcription
+        let minutes = app.minutes
+        do {
+            captions.observe(snapshot, fromStart: true)
+            try await waitForCaption { await service.started }
+            snapshot.state = .completed; snapshot.elapsedSeconds = 1
+            captions.observe(snapshot)
+            try await waitForCaption { await service.finishing }
+            if mode == "post" {
+                var run = TranscriptRun(model: .qwen, revision: "fixture")
+                run.sources[0].state = .succeeded
+                let task = TranscriptionTask(id: UUID().uuidString, inputPath: "/synthetic.m4a", inputSHA256: "fixture", sessionID: snapshot.sessionID, duration: 1, createdAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(1)), primaryModel: .qwen, runs: [run])
+                transcription.tasks = [task]
+            } else { minutes.recordingCompleted(sessionID: snapshot.sessionID, at: Date()) }
+            #expect(minutes.busy)
+            #expect(try minutes.store.readSnapshot(sessionID: snapshot.sessionID).isEmpty)
+            if mode == "preserve" || mode == "resume" {
+                await service.finishDuringCancellation()
+                let path = library.appendingPathComponent("LiveCaptions")
+                let retained = path.appendingPathExtension("retained")
+                if mode == "resume" {
+                    try FileManager.default.moveItem(at: path, to: retained)
+                    try Data("unwritable captions".utf8).write(to: path)
+                }
+                let saved = await app.flush(preserveTranslations: true)
+                if mode == "resume" {
+                    try FileManager.default.removeItem(at: path)
+                    try FileManager.default.moveItem(at: retained, to: path)
+                }
+                #expect(saved == (mode == "preserve"))
+                #expect(try minutes.lastRun(snapshot.sessionID)?.state == "interrupted")
+                await service.archiveGate.release()
+                try await waitForCaption { !minutes.busy }
+                #expect(try minutes.store.readSnapshot(sessionID: snapshot.sessionID).isEmpty)
+                if mode == "resume" {
+                    await successor.archiveGate.release()
+                    captions.observe(next, fromStart: true)
+                    try await waitForCaption { await successor.started }
+                    next.state = .completed; next.elapsedSeconds = 1; captions.observe(next)
+                    minutes.recordingCompleted(sessionID: next.sessionID, at: Date())
+                    try await waitForCaption { (try? minutes.store.readSnapshot(sessionID: next.sessionID).count) == 1 }
+                    #expect(try minutes.lastRun(next.sessionID)?.state == "succeeded")
+                }
+            } else {
+                var finished = false
+                let quitting = Task { let saved = await app.flush(); finished = true; return saved }
+                try await Task.sleep(for: .milliseconds(80))
+                #expect(!finished)
+                await service.archiveGate.release()
+                #expect(await quitting.value)
+                let versions = try minutes.store.readSnapshot(sessionID: snapshot.sessionID)
+                #expect(versions.count == 1)
+                #expect(versions.first?.citations.map(\.text) == [mode + "尾句"])
+                #expect(versions.first?.body.contains("尾句已归档") == true)
+                #expect(try minutes.lastRun(snapshot.sessionID)?.state == "succeeded")
+            }
+            await captions.shutdown()
+        } catch {
+            await service.archiveGate.release(); await captions.shutdown(); _ = await minutes.finish(preserve: true); throw error
+        }
+    }
 }
 
 @Test @MainActor

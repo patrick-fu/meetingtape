@@ -7,7 +7,7 @@ public enum TextTranslation {
         try await translate(text, target: target, provider: provider, credential: nil)
     }
 
-    public static func translate(_ text: String, target: String, provider: SubtitleTranslationProvider, credential: DoubaoCredential?, requestID: String? = nil) async throws -> CaptionTranslation {
+    public static func translate(_ text: String, target: String, provider: SubtitleTranslationProvider, credential: DoubaoCredential?, requestID: String? = nil, glossary: [String: String] = [:]) async throws -> CaptionTranslation {
         guard SubtitleLanguage.identifiers.contains(target), !text.isEmpty, text.utf8.count <= 16384 else {
             throw TranscriptionFailure("翻译目标语言或文本长度无效。")
         }
@@ -32,7 +32,7 @@ public enum TextTranslation {
             let response = try await session.translate(text)
             result = CaptionTranslation(targetLanguage: target, text: response.targetText, state: .translated, provider: "apple-local")
         case .doubao:
-            result = try await cloud(text, target: target, credential: credential, requestID: requestID)
+            result = try await cloud(text, target: target, credential: credential, requestID: requestID, glossary: glossary)
         }
         let elapsed = began.duration(to: ContinuousClock.now).components
         result.elapsedSeconds = Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
@@ -47,7 +47,7 @@ public enum TextTranslation {
         return source.split(separator: "-").first == target.split(separator: "-").first
     }
 
-    private static func cloud(_ text: String, target: String, credential: DoubaoCredential?, requestID: String?) async throws -> CaptionTranslation {
+    private static func cloud(_ text: String, target: String, credential: DoubaoCredential?, requestID: String?, glossary: [String: String]) async throws -> CaptionTranslation {
         let credential = try credential ?? TranscriptionCredentials.load()
         var request = URLRequest(url: URL(string: "https://openspeech.bytedance.com/api/v3/machine_translation/matx_translate")!)
         request.httpMethod = "POST"; request.timeoutInterval = 15
@@ -59,7 +59,9 @@ public enum TextTranslation {
             request.setValue(credential.appID, forHTTPHeaderField: "X-Api-App-Key")
             request.setValue(credential.accessToken, forHTTPHeaderField: "X-Api-Access-Key")
         }
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["target_language": target == "zh-Hans" ? "zh" : target, "text_list": [text]])
+        var requestPayload: [String: Any] = ["target_language": target == "zh-Hans" ? "zh" : target, "text_list": [text]]
+        if !glossary.isEmpty { requestPayload["corpus"] = ["glossary_list": glossary] }
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestPayload)
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForResource = 20
         let session = URLSession(configuration: configuration)
@@ -77,7 +79,7 @@ public enum TextTranslation {
         }
         guard let payload,
               let code = payload["code"] as? Int else { throw TranscriptionFailure("豆包文本翻译响应无效。") }
-        guard code == 20_000_000 else { throw TranscriptionFailure("豆包文本翻译失败（\(code)），请检查翻译权限。") }
+        guard code == 20_000_000 else { throw TranslationFailure("豆包文本翻译失败（\(code)），请检查翻译权限。", transient: code == 55_000_001) }
         guard let content = payload["data"] as? [String: Any], let list = content["translation_list"] as? [[String: Any]],
               list.count == 1, let translated = list[0]["translation"] as? String, !translated.isEmpty,
               translated.utf8.count <= 65536 else { throw TranscriptionFailure("豆包文本翻译未返回译文。") }

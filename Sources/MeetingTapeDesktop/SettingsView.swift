@@ -13,14 +13,14 @@ enum AppAppearance: String, CaseIterable, Identifiable {
     }
 }
 
-private enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, recording, models, captions, storage, about
+enum SettingsSection: String, CaseIterable, Identifiable {
+    case general, recording, models, captions, minutes, terms, storage, about
     var id: Self { self }
     var name: String {
-        switch self { case .general: "通用"; case .recording: "录音"; case .models: "模型"; case .captions: "实时字幕"; case .storage: "存储与导出"; case .about: "关于" }
+        switch self { case .general: "通用"; case .recording: "录音"; case .models: "模型"; case .captions: "实时字幕"; case .minutes: "会议纪要"; case .terms: "术语"; case .storage: "存储与导出"; case .about: "关于" }
     }
     var symbol: String {
-        switch self { case .general: "desktopcomputer"; case .recording: "mic"; case .models: "square.3.layers.3d"; case .captions: "captions.bubble"; case .storage: "folder"; case .about: "info.circle" }
+        switch self { case .general: "desktopcomputer"; case .recording: "mic"; case .models: "square.3.layers.3d"; case .captions: "captions.bubble"; case .minutes: "note.text"; case .terms: "character.book.closed"; case .storage: "folder"; case .about: "info.circle" }
     }
 }
 
@@ -50,7 +50,10 @@ struct SettingsView: View {
     @ObservedObject private var preferences: SettingsPreferences
     @AppStorage("appAppearance") private var appearance = AppAppearance.system
     @AppStorage("exportIncludesVersions") private var exportIncludesVersions = false
-    @State private var section = SettingsSection.models
+    private var section: SettingsSection {
+        get { onFinish == nil ? model.settingsSection : .models }
+        nonmutating set { model.settingsSection = newValue }
+    }
     @State private var choosingPostModel = false
     @State private var connecting = false
     @State private var localModel: TranscriptModel?
@@ -83,6 +86,10 @@ struct SettingsView: View {
                         case .recording: recording
                         case .models: models
                         case .captions: subtitleSettings
+                        case .minutes: TextModelSettingsView()
+                        case .terms:
+                            ConfirmedTermsView(sessionID: nil)
+                            Text("豆包翻译使用已确认译名；Apple 本地翻译沿用系统结果。").font(.system(size: 11)).foregroundStyle(.secondary)
                         case .storage: storage
                         case .about: about
                         }
@@ -193,6 +200,10 @@ struct SettingsView: View {
                     Picker("字幕翻译模型", selection: Binding(get: { captions.provider }, set: { captions.setProvider($0) })) {
                         ForEach(SubtitleTranslationProvider.allCases) { Text($0.name).tag($0) }
                     }.labelsHidden().frame(width: 205)
+                }
+                Divider()
+                defaultRow("会议纪要", symbol: "note.text", color: .purple, detail: "整理会议内容") {
+                    Button("配置模型…") { section = .minutes }
                 }
             }
             HStack { Text("模型与连接").font(.system(size: 13, weight: .semibold)); Spacer(); Button("查找已有模型…") { transcription.discoverExisting() }.font(.system(size: 11)).disabled(transcription.updating) }
