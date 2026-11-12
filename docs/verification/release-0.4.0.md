@@ -11,4 +11,6 @@
 
 真实豆包签名 App 重启补齐、物理采集与 AEC、设备/睡眠、跨 Space/全屏、macOS 14.2 实机及完整自动更新安装/重启周期继续沿既有验收记录追踪。
 
+正式版已发布到 [GitHub Releases](https://github.com/patrick-fu/meetingtape/releases/tag/v0.4.0)。匿名下载的 DMG 与已公证候选及公开校验和一致，下载副本的 staple 与 Gatekeeper 检查通过。
+
 DMG SHA-256：`23353cbf7c5969bbe02db594a22c67bd0c8d35a4d7fac84f503bf9b196d2e5a9`。
