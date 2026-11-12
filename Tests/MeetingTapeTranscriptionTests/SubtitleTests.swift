@@ -2,6 +2,37 @@ import Foundation
 import Testing
 @testable import MeetingTapeTranscription
 
+@Test(arguments: [false, true])
+func aNeverEnabledCaptionFeatureKeepsTheSelectedFeatureComplete(translationOnly: Bool) async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("meetingtape-one-feature-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = LiveCaptionStore(directory: root), id = UUID().uuidString.lowercased()
+    var options = SubtitleOptions(); options.transcription = !translationOnly; options.translation = translationOnly
+    try await store.recordControls(id, at: 0, mode: .separate, options: options)
+    try await store.recordControls(id, at: 13, mode: .separate, options: options)
+    for source in [TranscriptSource.system, .microphone] {
+        let connection = CaptionConnection(id: source.rawValue, source: source, start: 0, end: 13, complete: true, state: "completed")
+        var segment = LiveCaptionSegment(id: source.rawValue, start: 0, end: 13, text: translationOnly ? "" : "完整原文", final: true, source: source, connectionID: connection.id)
+        if translationOnly { segment.translation = CaptionTranslation(targetLanguage: "zh-Hans", text: "完整目标语言字幕", state: .translated, provider: "fixture") }
+        _ = try await store.updateConnection(id, mode: .separate, connection: connection, segments: [segment])
+    }
+    let archive = try #require(await store.load(id))
+    #expect(archive.complete && !archive.partial)
+    let markdown = try TranscriptExportSnapshot(title: "独立开关", versions: [TranscriptExportVersion(live: archive)]).markdown(primary: "live")
+    #expect(markdown.contains("状态：完成") && markdown.contains("该期间未开启"))
+}
+
+@Test func aRetractedDraftGetsANewRevisionWhenSpeechReturns() {
+    var options = SubtitleOptions(); options.translation = true
+    var buffer = CaptionDraftBuffer(connectionID: "connection", source: .system, options: options)
+    let first = buffer.receive([LiveCaptionSegment(id: "0", start: 0, end: 1, text: "retracted", final: false)])[0]
+    _ = buffer.receive([])
+    let next = buffer.receive([LiveCaptionSegment(id: "0", start: 0, end: 2, text: "corrected", final: true)])[0]
+    #expect(first.id == next.id && next.revision > first.revision)
+    let applied = buffer.apply(CaptionTranslation(targetLanguage: options.targetLanguage, text: "stale", state: .translated, provider: "fixture"), id: first.id, revision: first.revision)
+    #expect(!applied)
+}
+
 @Test func translationBelongsToRevisionAndTranslationOnlySavesTargetOnce() throws {
     var options = SubtitleOptions(); options.translation = true; options.transcription = false
     var buffer = CaptionDraftBuffer(connectionID: "connection-a", source: .system, options: options)
@@ -65,4 +96,16 @@ import Testing
     #expect(document.coverage.filter { $0.state == "unknown" && $0.start == 0 && $0.end == 30 }.count == 2)
     let markdown = try TranscriptExportSnapshot(title: "中途接管", versions: [TranscriptExportVersion(live: document)]).markdown(primary: "live")
     #expect(markdown.contains("历史未记录") && markdown.contains("状态：部分字幕"))
+}
+
+@Test(arguments: [
+    ("今天下午", "zh-Hans", "今天下午", false),
+    ("我們開會", "zh-Hans", "我们开会", true),
+    ("我们开会", "zh-Hant", "我們開會", true)
+])
+func chineseCaptionsUseTheirTargetScriptWithoutAnotherTranslationLanguage(_ input: String, _ target: String, _ expected: String, _ converted: Bool) async throws {
+    let result = try await TextTranslation.translate(input, target: target, provider: .local)
+    #expect(result.state == (converted ? .translated : .sameLanguage))
+    #expect((result.text ?? input) == expected)
+    #expect(result.provider == (converted ? "unicode-script-conversion" : "language-detection"))
 }

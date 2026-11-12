@@ -14,6 +14,13 @@ public enum TextTranslation {
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(text)
         let source = recognizer.dominantLanguage?.rawValue
+        if let source, source.hasPrefix("zh"), target.hasPrefix("zh") {
+            let transform = StringTransform(target == "zh-Hant" ? "Hans-Hant" : "Hant-Hans")
+            guard let converted = text.applyingTransform(transform, reverse: false) else { throw TranscriptionFailure("暂时无法转换字幕的中文书写形式。") }
+            return converted == text
+                ? CaptionTranslation(targetLanguage: target, state: .sameLanguage, provider: "language-detection")
+                : CaptionTranslation(targetLanguage: target, text: converted, state: .translated, provider: "unicode-script-conversion")
+        }
         if let source, sameLanguage(source, target) {
             return CaptionTranslation(targetLanguage: target, state: .sameLanguage, provider: "language-detection")
         }
@@ -40,10 +47,6 @@ public enum TextTranslation {
     }
 
     static func sameLanguage(_ source: String, _ target: String) -> Bool {
-        if source.hasPrefix("zh") || target.hasPrefix("zh") {
-            let normalized = source == "zh" ? "zh-Hans" : source
-            return normalized == target
-        }
         return source.split(separator: "-").first == target.split(separator: "-").first
     }
 

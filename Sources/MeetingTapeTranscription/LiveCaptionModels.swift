@@ -35,6 +35,7 @@ public struct LiveCaptionArchive: Codable, Sendable, Equatable {
     public var translationJobs: [CaptionTranslationJob] = []
     public var translationVersions: [CaptionTranslationVersion] = []
     public var translationSealedRuns: [String] = []
+    public var recognitionObservations: [CaptionRecognitionObservation] = []
 
     public init(sessionID: String) { self.sessionID = sessionID }
 }
@@ -54,7 +55,7 @@ extension LiveCaptionSegment {
 }
 
 extension LiveCaptionArchive {
-    private enum CodingKeys: String, CodingKey { case schemaVersion, sessionID, provider, segments, complete, partial, message, recognitionMode, coverage, connections, updateRevision, translationJobs, translationVersions, translationSealedRuns }
+    private enum CodingKeys: String, CodingKey { case schemaVersion, sessionID, provider, segments, complete, partial, message, recognitionMode, coverage, connections, updateRevision, translationJobs, translationVersions, translationSealedRuns, recognitionObservations }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
@@ -69,6 +70,7 @@ extension LiveCaptionArchive {
         translationJobs = try c.decodeIfPresent([CaptionTranslationJob].self, forKey: .translationJobs) ?? []
         translationVersions = try c.decodeIfPresent([CaptionTranslationVersion].self, forKey: .translationVersions) ?? []
         translationSealedRuns = try c.decodeIfPresent([String].self, forKey: .translationSealedRuns) ?? []
+        recognitionObservations = try c.decodeIfPresent([CaptionRecognitionObservation].self, forKey: .recognitionObservations) ?? []
     }
 }
 
@@ -108,7 +110,7 @@ public actor LiveCaptionStore {
     public func recordControls(_ sessionID: String, at time: Double, mode: RecognitionMode, options: SubtitleOptions, newObserver: Bool = false) throws {
         guard time.isFinite, time >= 0, time <= 172800 else { throw TranscriptionFailure("字幕覆盖时间无效。") }
         var value = try load(sessionID) ?? LiveCaptionArchive(sessionID: sessionID)
-        value.schemaVersion = max(2, value.schemaVersion); value.recognitionMode = mode
+        value.schemaVersion = max(3, value.schemaVersion); value.recognitionMode = mode
         for source in mode.sources {
             for feature in ["transcription", "translation"] {
                 let enabled = feature == "transcription" ? options.transcription : options.translation
@@ -130,16 +132,16 @@ public actor LiveCaptionStore {
             }
         }
         value.updateRevision += 1
-        value.partial = value.partial || value.coverage.contains { ($0.state == "disabled" || $0.state == "unknown") && $0.end > $0.start }
+        value.partial = value.partial || value.hasCoverageGaps
         if value.partial { value.complete = false }
         try save(value)
     }
 
-    func updateConnection(_ sessionID: String, mode: RecognitionMode, connection: CaptionConnection, segments: [LiveCaptionSegment], translationInputs: [LiveCaptionSegment] = [], options: SubtitleOptions? = nil, runID: String = "") throws -> LiveCaptionArchive {
+    func updateConnection(_ sessionID: String, mode: RecognitionMode, connection: CaptionConnection, segments: [LiveCaptionSegment], observations: [CaptionRecognitionObservation] = [], translationInputs: [LiveCaptionSegment] = [], options: SubtitleOptions? = nil, runID: String = "") throws -> LiveCaptionArchive {
         var value = try load(sessionID) ?? LiveCaptionArchive(sessionID: sessionID)
         if let sealed = value.connections.first(where: { $0.id == connection.id }), ["completed", "cancelled", "failed"].contains(sealed.state), !["completed", "cancelled", "failed"].contains(connection.state) { return value }
         if value.translationSealedRuns.contains(runID) { return value }
-        value.schemaVersion = max(2, value.schemaVersion); value.recognitionMode = mode
+        value.schemaVersion = max(3, value.schemaVersion); value.recognitionMode = mode
         let saved = Dictionary(uniqueKeysWithValues: value.segments.map { ($0.id, $0) })
         value.segments.removeAll { $0.connectionID == connection.id }
         value.segments.append(contentsOf: segments.map { segment in
@@ -152,6 +154,8 @@ public actor LiveCaptionStore {
         value.segments.sort { $0.start == $1.start ? $0.id < $1.id : $0.start < $1.start }
         if let index = value.connections.firstIndex(where: { $0.id == connection.id }) { value.connections[index] = connection }
         else { value.connections.append(connection) }
+        let known = Set(value.recognitionObservations.map(\.id))
+        value.recognitionObservations += observations.filter { !known.contains($0.id) }
         if let options, options.translation {
             value.schemaVersion = 3
             let glossary = translationInputs.isEmpty ? [:] : try ConfirmedTermStore().effective(recordingID: sessionID).glossary(target: options.targetLanguage)
@@ -169,6 +173,9 @@ public actor LiveCaptionStore {
               value.segments.allSatisfy({ $0.start.isFinite && $0.end.isFinite && $0.start >= 0 && $0.end >= $0.start && $0.end <= 172800 && $0.text.utf8.count <= 65536 && ($0.translation?.text?.utf8.count ?? 0) <= 65536 }),
               value.coverage.allSatisfy({ $0.start.isFinite && $0.end.isFinite && $0.start >= 0 && $0.end >= $0.start && $0.end <= 172800 }),
               value.translationJobs.count <= 60_000, value.translationVersions.count <= 100, value.translationSealedRuns.count <= 1000,
+              value.recognitionObservations.count <= 60_000,
+              Set(value.recognitionObservations.map(\.id)).count == value.recognitionObservations.count,
+              value.recognitionObservations.allSatisfy({ $0.receivedUptime.isFinite && $0.receivedUptime >= 0 && ($0.audioReadUptime.map { $0.isFinite && $0 >= 0 } ?? true) && ($0.displayedUptime.map { $0.isFinite && $0 >= 0 } ?? true) }),
               Set(value.translationJobs.map(\.id)).count == value.translationJobs.count,
               Set(value.translationVersions.map(\.id)).count == value.translationVersions.count,
               value.translationJobs.allSatisfy({ job in job.input.utf8.count <= 65536 && job.attempts.count <= 3 && (job.versionID.map { id in value.translationVersions.contains { $0.id == id } } ?? true) }) else { throw TranscriptionFailure("实时字幕文件与录音不匹配或时间无效。") }

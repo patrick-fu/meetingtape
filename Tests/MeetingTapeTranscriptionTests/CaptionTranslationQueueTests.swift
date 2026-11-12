@@ -51,6 +51,8 @@ private func submit(_ raw: LiveCaptionSegment, queue: CaptionTranslationQueue, t
     try await queue.drain()
     let times = await gate.times
     #expect(times[2].duration(to: times[3]) >= .seconds(1))
+    let observed = try #require(try await store.load(id)).translationJobs.first { $0.input == "another draft" }?.attempts.first
+    #expect((observed?.throttleSeconds ?? 0) > 0)
 }
 
 @Test func translationRetriesTransientFailuresTwiceAndKeepsEachAttempt() async throws {
@@ -64,6 +66,8 @@ private func submit(_ raw: LiveCaptionSegment, queue: CaptionTranslationQueue, t
     #expect(job.state == .failed && job.attempts.count == 3)
     #expect(Set(job.attempts.map(\.id)).count == 3)
     #expect(job.attempts.allSatisfy { $0.state == "failed" && $0.executionSeconds != nil && $0.usage == nil })
+    #expect(job.attempts[0].retryWaitSeconds == 0)
+    #expect((job.attempts[1].retryWaitSeconds ?? 0) > 0 && (job.attempts[2].retryWaitSeconds ?? 0) > 0)
 }
 
 @Test func completionAfterRestartPreservesPrivateInputAndOriginalVersion() async throws {

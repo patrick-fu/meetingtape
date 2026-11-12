@@ -30,7 +30,7 @@ public struct MeetingMinutesSources: Sendable {
             var unavailable = false
             for segment in live.segments {
                 if !segment.text.isEmpty {
-                    let model = live.provider
+                    let model = live.connections.first(where: { $0.id == segment.connectionID })?.modelName ?? live.provider
                     try append(versionID: "live", model: model, source: segment.source, segmentID: segment.id, revision: String(segment.revision), start: segment.start, end: segment.end, text: segment.text)
                 } else {
                     let candidates = translatedVersions.compactMap { version -> (String, LiveCaptionSegment)? in

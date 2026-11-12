@@ -20,6 +20,10 @@ final class LiveCaptionModel: ObservableObject {
     @Published private(set) var translationEnabled: Bool
     @Published private(set) var targetLanguage: String
     @Published private(set) var provider: SubtitleTranslationProvider
+    @Published private(set) var recognitionProvider: LiveRecognitionProvider
+    @Published private(set) var installingLocal = false
+    @Published private(set) var localInstallationMessage: String?
+    @Published private(set) var lagSeconds = 0.0
     @Published private(set) var segments: [LiveCaptionSegment] = []
     @Published private(set) var message: String?
     @Published private(set) var connecting = false
@@ -46,6 +50,7 @@ final class LiveCaptionModel: ObservableObject {
     private var coverageAt = -1.0
     private var controls: Task<Void, Never>?
     private var failedSource = false
+    private var displayWrites: Task<Void, Never>?
     @Published private var retrying: Int?
 
     init(enabled: Bool? = nil, store: LiveCaptionStore = LiveCaptionStore(), translator: CaptionTranslate? = nil, makeSession: SessionFactory? = nil) {
@@ -53,6 +58,7 @@ final class LiveCaptionModel: ObservableObject {
         translationEnabled = enabled == nil && UserDefaults.standard.bool(forKey: "liveTranslationEnabled")
         targetLanguage = UserDefaults.standard.string(forKey: "liveTargetLanguage") ?? "zh-Hans"
         provider = SubtitleTranslationProvider(rawValue: UserDefaults.standard.string(forKey: "liveTranslationProvider") ?? "local") ?? .local
+        recognitionProvider = LiveRecognitionProvider(rawValue: UserDefaults.standard.string(forKey: "liveRecognitionProvider") ?? "doubao") ?? .doubao
         self.store = store; self.makeSession = makeSession; self.translator = translator
     }
 
@@ -142,7 +148,28 @@ final class LiveCaptionModel: ObservableObject {
         reconfigure()
     }
 
-    private func confirmCloudASR() -> Bool {
+    func setRecognitionProvider(_ value: LiveRecognitionProvider) {
+        guard value != recognitionProvider else { return }
+        if value == .doubao, anyEnabled, !confirmCloudASR(force: true) { return }
+        recognitionProvider = value; UserDefaults.standard.set(value.rawValue, forKey: "liveRecognitionProvider")
+        reconfigure()
+    }
+
+    func installLocal() async {
+        guard !installingLocal else { return }
+        installingLocal = true; localInstallationMessage = nil
+        defer { installingLocal = false }
+        do {
+            _ = try await RecordingClient().data(["transcribe", "live", "install"])
+            localInstallationMessage = "本地字幕模型已就绪。"
+        } catch { localInstallationMessage = error.localizedDescription }
+    }
+
+    private func confirmCloudASR(force: Bool = false) -> Bool {
+        if !force, recognitionProvider == .senseVoice {
+            do { _ = try LocalLiveRuntime().installation(); return true }
+            catch { message = error.localizedDescription; return false }
+        }
         let alert = NSAlert()
         alert.messageText = "开启实时语音识别？"
         alert.informativeText = "实时字幕和字幕翻译均需将声音发送至豆包语音识别，使用你的账户计费。选择本地翻译时，文字翻译在设备上完成。"
@@ -187,6 +214,7 @@ final class LiveCaptionModel: ObservableObject {
                 catch { message = error.localizedDescription; saved = false }
             }
         }
+        await displayWrites?.value
         return saved
     }
 
@@ -242,7 +270,7 @@ final class LiveCaptionModel: ObservableObject {
                 })
                 self.translationQueues[value.sessionID] = queue
             }
-            let service = self.makeSession?(value, begin, self.store, queue) ?? LiveCaptionSession(snapshot: value, startAt: begin, store: self.store, options: self.options, translationQueue: queue)
+            let service = self.makeSession?(value, begin, self.store, queue) ?? LiveCaptionSession(snapshot: value, startAt: begin, store: self.store, options: self.options, recognitionProvider: self.recognitionProvider, translationQueue: queue)
             self.jobs[id]?.service = service
             if [.completed, .failed].contains(value.state) { await service.finish(value) }
             let document = await service.run { [weak self] value in await self?.accept(value, id: id) }
@@ -252,6 +280,17 @@ final class LiveCaptionModel: ObservableObject {
     }
 
     func refreshArchive() { archiveRevision += 1 }
+
+    func acknowledgeDisplay(_ segment: LiveCaptionSegment, original: Bool, translation: Bool, at date: Date, uptime: Double) {
+        guard let sessionID = snapshot?.sessionID else { return }
+        let previous = displayWrites
+        displayWrites = Task {
+            await previous?.value
+            do {
+                if try await store.acknowledgeDisplay(sessionID, segmentID: segment.id, revision: segment.revision, original: original, translation: translation, at: date, uptime: uptime) { archiveRevision += 1 }
+            } catch { message = "字幕显示统计未保存：\(error.localizedDescription)" }
+        }
+    }
 
     func completeTranslations(_ sessionID: String, parentID: String?, includeCompleted: Bool = false) async throws -> String {
         guard !active || sessionID != self.sessionID else { throw TranscriptionFailure("停止录音后即可补齐译文。") }
@@ -285,6 +324,7 @@ final class LiveCaptionModel: ObservableObject {
         let sources = (snapshot?.recognitionMode ?? .merged).sources
         failedSource = sources.contains { source in value.connections.last(where: { $0.source == source })?.state == "failed" }
         segments = value.segments; message = value.message; connecting = false
+        lagSeconds = value.connections.filter { $0.state == "running" }.compactMap(\.lagSeconds).max() ?? 0
         if compactHeight != height { onResize?() }
     }
 

@@ -158,6 +158,7 @@ private struct RecordingDetail: View {
                 waveformPanel
                 MeetingMinutesView(model: model, item: item)
                 if let liveArchive { LiveCaptionArchiveView(model: model, item: item, archive: liveArchive) }
+                if let liveArchive { CaptionStatisticsView(archive: liveArchive) }
                 if let liveArchiveError { Text(liveArchiveError).font(.system(size: 11)).foregroundStyle(.orange) }
                 TranscriptSection(model: model, item: item)
                 HStack(alignment: .top, spacing: 35) {

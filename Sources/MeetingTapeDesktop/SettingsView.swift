@@ -58,6 +58,7 @@ struct SettingsView: View {
     @State private var connecting = false
     @State private var localModel: TranscriptModel?
     @State private var languages = false
+    @State private var localLive = false
     private let onFinish: (() -> Void)?
 
     init(model: AppModel, updater: AppUpdater, onFinish: (() -> Void)? = nil) {
@@ -110,6 +111,7 @@ struct SettingsView: View {
                 HStack { Spacer(); Button("完成") { languages = false }.keyboardShortcut(.defaultAction) }
             }.padding(26).frame(width: 430)
         }
+        .sheet(isPresented: $localLive) { LocalLiveSettingsView(captions: captions) }
     }
 
     private var sidebar: some View {
@@ -173,9 +175,13 @@ struct SettingsView: View {
             group {
                 defaultRow("实时转写", symbol: "waveform", color: .indigo, detail: "录音时显示原文") {
                     Menu {
-                        Text("豆包实时语音 2.0")
+                        ForEach(LiveRecognitionProvider.allCases) { provider in
+                            Button(provider.name) { captions.setRecognitionProvider(provider) }
+                        }
+                        Divider()
+                        Button("配置本地字幕…") { localLive = true }
                         Button("配置豆包连接…") { connecting = true }
-                    } label: { modelLabel("豆包实时语音 2.0", ready: transcription.inventory?.credentialConfigured == true) }.menuStyle(.borderlessButton).frame(width: 205)
+                    } label: { modelLabel(captions.recognitionProvider.name, ready: captions.recognitionProvider == .senseVoice ? (try? LocalLiveRuntime().installation()) != nil : transcription.inventory?.credentialConfigured == true) }.menuStyle(.borderlessButton).frame(width: 205)
                 }
                 Divider()
                 defaultRow("录后转写", symbol: "doc.text", color: .green, detail: "录音结束后生成完整稿件") {
@@ -289,6 +295,12 @@ struct SettingsView: View {
     private var subtitleSettings: some View {
         VStack(alignment: .leading, spacing: 20) {
             group {
+                settingRow("语音识别模型") {
+                    Picker("语音识别模型", selection: Binding(get: { captions.recognitionProvider }, set: { captions.setRecognitionProvider($0) })) {
+                        ForEach(LiveRecognitionProvider.allCases) { Text($0.name).tag($0) }
+                    }.labelsHidden().frame(width: 205)
+                }
+                Divider()
                 settingRow("实时转写") { Toggle("实时转写", isOn: Binding(get: { captions.enabled }, set: { captions.setEnabled($0) })).labelsHidden().toggleStyle(.switch).controlSize(.small) }
                 Divider()
                 settingRow("字幕翻译") { Toggle("字幕翻译", isOn: Binding(get: { captions.translationEnabled }, set: { captions.setTranslationEnabled($0) })).labelsHidden().toggleStyle(.switch).controlSize(.small) }
@@ -301,7 +313,8 @@ struct SettingsView: View {
                 Divider()
                 settingRow("悬浮窗置顶") { Toggle("悬浮窗置顶", isOn: $model.panelPinned).labelsHidden().toggleStyle(.switch).controlSize(.small) }
             }
-            if captions.anyEnabled { Text("实时语音识别会上传声音至豆包，使用你的账户计费。").font(.system(size: 11)).foregroundStyle(.orange) }
+            if captions.recognitionProvider == .senseVoice { Button("配置本地字幕…") { localLive = true } }
+            if captions.anyEnabled, captions.recognitionProvider == .doubao { Text("实时语音识别会上传声音至豆包，使用你的账户计费。").font(.system(size: 11)).foregroundStyle(.orange) }
             if captions.provider == .local {
                 if #available(macOS 26, *) { LocalTranslationSetup(target: captions.targetLanguage).id(captions.targetLanguage) }
                 else { Text("本地实时翻译需要 macOS 26，可在模型页选择豆包翻译。").font(.system(size: 11)).foregroundStyle(.secondary) }
