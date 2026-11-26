@@ -6,6 +6,24 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>MeetingTape</title>
         <item>
+            <title>0.4.1</title>
+            <pubDate>Thu, 26 Nov 2026 19:31:52 +0800</pubDate>
+            <link>https://patrick-fu.github.io/meetingtape/</link>
+            <sparkle:version>10</sparkle:version>
+            <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[## v0.4.1 — 2026-11-26
+
+- Skip individual local audio chunks that exhaust the Qwen or MOSS decoder budget so remaining audio still completes as a partial transcript, with skipped intervals reported in status and Markdown export and targeted on retry.\
+  本地 Qwen 或 MOSS 单个音频块耗尽生成上限时跳过该块并继续转写其余部分，结果保留为部分完成，状态与 Markdown 导出注明跳过区间，重试仅重跑跳过块。
+- Distinguish local inference lock contention from active recording priority so queued transcription tasks show a dedicated queued state instead of the recording-priority notice, and use shared lock probes to reduce contention.\
+  区分本地推理锁排队与录音优先让路，排队任务不再误显为“录音优先，转写等待中”，并改用共享锁探测减少并发竞争。
+
+]]></description>
+            <enclosure url="https://github.com/patrick-fu/meetingtape/releases/download/v0.4.1/MeetingTape-0.4.1-arm64.dmg" length="8352239" type="application/octet-stream" sparkle:edSignature="gjbNzOKtWOrPhoANvyD4jo/bkBDPImJIOFLzcpuhr0p294aEZ2mgH2ukrU4ytrBtb0v65lpiD4DMZqQGMNS7BA=="/>
+        </item>
+        <item>
             <title>0.4.0</title>
             <pubDate>Thu, 12 Nov 2026 14:17:49 +0800</pubDate>
             <link>https://patrick-fu.github.io/meetingtape/</link>
@@ -60,27 +78,9 @@ Local builds, automated checks, and native UI verification are documented in the
 ]]></description>
             <enclosure url="https://github.com/patrick-fu/meetingtape/releases/download/v0.3.0/MeetingTape-0.3.0-arm64.dmg" length="6706874" type="application/octet-stream" sparkle:edSignature="aDguxl/3y6DURNL/Q1yZPHtzu2c34gEcytVS8x2oubxKUp4LnejLRI7ll6kmEopknOioYhhJerMhTyt7deoGDQ=="/>
         </item>
-        <item>
-            <title>0.2.3</title>
-            <pubDate>Tue, 03 Nov 2026 21:07:44 +0800</pubDate>
-            <link>https://patrick-fu.github.io/meetingtape/</link>
-            <sparkle:version>7</sparkle:version>
-            <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[## v0.2.3 — 2026-11-03
-
-- Reduce runaway repetition in local Qwen transcription with a mild repetition penalty and a generation budget based on audio duration.\
-  为本地 Qwen 转写加入轻度重复惩罚，并按音频时长限制生成长度，减少异常复读。
-- Report an error when Qwen exhausts its generation budget, preserve completed chunks and diagnostics, and let you retry from the unfinished chunk.\
-  Qwen 耗尽生成额度时明确报错，保留已完成分块与诊断信息，可从未完成的音频块继续重试。
-
-]]></description>
-            <enclosure url="https://github.com/patrick-fu/meetingtape/releases/download/v0.2.3/MeetingTape-0.2.3-arm64.dmg" length="6538670" type="application/octet-stream" sparkle:edSignature="RWRzlVnnxQevHlFZmd8UzWpyMZPkfzmow6XI4t2WQaz68gQY6Ds3xEyxhD+tbKtehrma6/mAfIScW/1wjbyQBA=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: Q8edL2ugOg5KaVjxAVhGKQBBt1gDHrZB96rzjOyA1go2S9AUEbGwoabGQETOLAUK5f0PeyuT9834aORjIhiCCQ==
-length: 6757
+edSignature: /R1wVAE1mMMLtfdC7+tA2EE+XlxgiL/217uakaq26Rg8W/BKGf/6y5fctM/B1Chh85UT5pB8VYGNjIgBnAn2DQ==
+length: 7063
 -->
