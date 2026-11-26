@@ -1,5 +1,12 @@
 # Change Log
 
+## v0.4.1 — 2026-11-26
+
+- Skip individual local audio chunks that exhaust the Qwen or MOSS decoder budget so remaining audio still completes as a partial transcript, with skipped intervals reported in status and Markdown export and targeted on retry.\
+  本地 Qwen 或 MOSS 单个音频块耗尽生成上限时跳过该块并继续转写其余部分，结果保留为部分完成，状态与 Markdown 导出注明跳过区间，重试仅重跑跳过块。
+- Distinguish local inference lock contention from active recording priority so queued transcription tasks show a dedicated queued state instead of the recording-priority notice, and use shared lock probes to reduce contention.\
+  区分本地推理锁排队与录音优先让路，排队任务不再误显为“录音优先，转写等待中”，并改用共享锁探测减少并发竞争。
+
 ## v0.4.0 — 2026-11-12
 
 - Add SenseVoice on-device live captions, with installation and repair from Settings or CLI.\
