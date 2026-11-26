@@ -26,6 +26,13 @@ public enum TranscriptSource: String, Codable, CaseIterable, Sendable, Identifia
         case .merged: index
         }
     }
+    func nextSegmentIndex(after segments: [TranscriptSegment]) -> Int {
+        guard let maxID = segments.map(\.id).max() else { return 0 }
+        switch self {
+        case .system, .microphone: return maxID / 2 + 1
+        case .merged: return maxID + 1
+        }
+    }
 }
 
 public typealias RecognitionMode = MeetingTapeCore.RecognitionMode

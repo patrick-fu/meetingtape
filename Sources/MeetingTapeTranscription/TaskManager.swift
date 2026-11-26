@@ -76,7 +76,8 @@ public enum TranscriptionManager {
                 for index in task.runs.indices { for source in task.runs[index].sources.indices where !task.runs[index].sources[source].state.finished {
                     task.runs[index].sources[source].state = .failed
                     task.runs[index].sources[source].error = "转写进程已中断，可重试该音源。"
-                    if let attempt = task.runs[index].sources[source].attempts.indices.last {
+                    if let attempt = task.runs[index].sources[source].attempts.indices.last,
+                       !task.runs[index].sources[source].attempts[attempt].state.finished {
                         task.runs[index].sources[source].attempts[attempt].state = .failed
                         task.runs[index].sources[source].attempts[attempt].finishedAt = ISO8601DateFormatter().string(from: Date())
                         task.runs[index].sources[source].attempts[attempt].error = "转写进程已中断。"
@@ -121,8 +122,8 @@ public enum TranscriptionManager {
         try? process.run()
     }
 
-    public static func work(_ id: String) throws {
-        let store = try TranscriptionStore()
+    public static func work(_ id: String, store: TranscriptionStore? = nil, runner: URL? = nil) throws {
+        let store = try store ?? TranscriptionStore()
         let directory = try store.taskDirectory(id)
         let lock = try TranscriptionLock(directory.appendingPathComponent("worker.lock"))
         defer { withExtendedLifetime(lock) {} }
@@ -144,13 +145,17 @@ public enum TranscriptionManager {
             task.runs[index].sources[lane] = source; try store.save(task)
             let context = task, run = task.runs[index]
             do {
-                if run.model.local { try local(context, run: run, source: &source, store: store) { progress in
-                    task.runs[index].sources[lane] = progress; try store.save(task)
-                } }
-                else { try cloud(context, run: run, source: &source, store: store) { progress in
-                    task.runs[index].sources[lane] = progress; try store.save(task)
-                } }
-                source.state = .succeeded; source.error = nil
+                if run.model.local {
+                    source.state = try local(context, run: run, source: &source, store: store, runner: runner) { progress in
+                        task.runs[index].sources[lane] = progress; try store.save(task)
+                    }
+                    if source.state == .succeeded { source.error = nil }
+                } else {
+                    try cloud(context, run: run, source: &source, store: store) { progress in
+                        task.runs[index].sources[lane] = progress; try store.save(task)
+                    }
+                    source.state = .succeeded; source.error = nil
+                }
             } catch { source.state = .failed; source.error = error.localizedDescription }
             if let attempt = source.attempts.indices.last {
                 let elapsed = max(0, ProcessInfo.processInfo.systemUptime - began)
@@ -168,7 +173,7 @@ public enum TranscriptionManager {
     }
 
     private static func local(_ task: TranscriptionTask, run: TranscriptRun, source: inout TranscriptSourceExecution,
-                              store: TranscriptionStore, save: (TranscriptSourceExecution) throws -> Void) throws {
+                              store: TranscriptionStore, runner: URL? = nil, save: (TranscriptSourceExecution) throws -> Void) throws -> TranscriptRunState {
         guard let installation = run.installation, installation.available else { throw TranscriptionFailure("本地模型不可用，请检查安装。") }
         let directory = try store.taskDirectory(task.id)
         let family = run.model
@@ -182,25 +187,27 @@ public enum TranscriptionManager {
         guard progress.completedChunks >= 0, progress.completedChunks <= chunks, result.model == family else {
             throw TranscriptionFailure("已有转写进度无效，原文件已保留。")
         }
-        source.completedChunks = progress.completedChunks
+        var skipped = Set(progress.skippedChunks.filter { $0 >= 0 && $0 < progress.completedChunks })
+        let pendingChunks = Array(progress.completedChunks..<chunks) + skipped.sorted()
+        source.completedChunks = max(0, progress.completedChunks - skipped.count)
         let attempt = source.attempts.count - 1
-        source.attempts[attempt].completedAudioSeconds = min(task.duration, Double(progress.completedChunks) * 30)
-        for chunk in progress.completedChunks..<chunks {
+        source.attempts[attempt].completedAudioSeconds = completedAudioSeconds(scanned: progress.completedChunks, skipped: skipped, duration: task.duration)
+        for chunk in pendingChunks {
             var complete = false
             while !complete {
-                source.state = .waitingForRecording; try save(source)
-                let executed: Bool? = try TranscriptionProcess.local { lease in
+                let outcome: LocalExecution<Bool> = try TranscriptionProcess.local(store: store) { lease in
                     let began = ProcessInfo.processInfo.systemUptime
                     defer { source.attempts[attempt].executionSeconds += max(0, ProcessInfo.processInfo.systemUptime - began) }
-                    source.state = .running; try save(source)
+                    if source.state != .running { source.state = .running; try save(source) }
                     let start = Double(chunk) * 30, length = min(30, task.duration - start)
                     let audio = directory.appendingPathComponent("local-\(prefix)-\(chunk).wav")
                     defer { try? FileManager.default.removeItem(at: audio) }
                     try TranscriptionAudio.prepare(URL(fileURLWithPath: task.inputPath), destination: audio, start: start, duration: length, source: source.source)
                     let raw = directory.appendingPathComponent("\(prefix)-\(chunk)-\(UUID().uuidString.lowercased()).raw.json")
-                    let output = try TranscriptionProcess.run(URL(fileURLWithPath: installation.python), [try TranscriptionResources.directory().appendingPathComponent("local_runner.py").path,
+                    let runnerPath = try runner?.path ?? TranscriptionResources.directory().appendingPathComponent("local_runner.py").path
+                    let output = try TranscriptionProcess.run(URL(fileURLWithPath: installation.python), [runnerPath,
                         "--model-type", family.rawValue, "--model", installation.model, "--audio", audio.path, "--output", raw.path],
-                        environment: TranscriptionProcess.environment(offline: true), local: true, lease: lease)
+                        environment: TranscriptionProcess.environment(offline: true), local: true, lease: lease, store: store)
                     if output.yielded { return false }
                     let payload = (try? JSONSerialization.jsonObject(with: Data(contentsOf: raw))) as? [String: Any]
                     if let statistics = payload?["statistics"] as? [String: Any],
@@ -213,6 +220,18 @@ public enum TranscriptionManager {
                         source.attempts[attempt].resourceScope = "runner-processes"
                     }
                     guard output.status == 0 else {
+                        if payload?["errorCode"] as? String == "decoder_exhausted" {
+                            skipped.insert(chunk)
+                            let scanned = max(progress.completedChunks, chunk + 1)
+                            let sortedSkipped = skipped.sorted()
+                            progress = LocalProgress(result: result, completedChunks: scanned, skippedChunks: sortedSkipped)
+                            try store.write(progress, to: resultURL)
+                            source.completedChunks = max(0, scanned - sortedSkipped.count)
+                            source.attempts[attempt].completedAudioSeconds = completedAudioSeconds(scanned: scanned, skipped: skipped, duration: task.duration)
+                            source.error = skippedSummary(family: family, skipped: sortedSkipped, completed: source.completedChunks, totalChunks: chunks, duration: task.duration, finished: false)
+                            try save(source)
+                            return true
+                        }
                         let detail = String(decoding: output.errors.suffix(1400), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
                         throw TranscriptionFailure("\(family.name) 转写失败：" + (detail.isEmpty ? "进程退出码 \(output.status)，请检查模型路径和访问权限。" : detail))
                     }
@@ -220,31 +239,82 @@ public enum TranscriptionManager {
                         throw TranscriptionFailure("\(family.name) 未返回有效正文，此音频块未记为完成。")
                     }
                     let precision = payload["timestampPrecision"] as? String ?? "chunk"
+                    var nextIndex = source.source.nextSegmentIndex(after: result.segments)
                     var segments: [TranscriptSegment] = []
                     for value in payload["segments"] as? [[String: Any]] ?? [] {
                         guard let begin = value["start"] as? Double, let end = value["end"] as? Double, let text = value["text"] as? String,
                               begin.isFinite, end.isFinite, begin >= 0, end >= begin, begin <= length else { continue }
                         let speaker = (value["speaker"] as? String).map { "\(chunk + 1):\($0)" }
-                        segments.append(TranscriptSegment(id: source.source.segmentID(result.segments.count + segments.count),
+                        segments.append(TranscriptSegment(id: source.source.segmentID(nextIndex),
                             start: start + begin, end: min(start + end, start + length), text: text, speaker: speaker,
                             precision: precision, source: source.source))
+                        nextIndex += 1
                     }
                     if segments.isEmpty, let text = payload["text"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        segments.append(TranscriptSegment(id: source.source.segmentID(result.segments.count), start: start, end: start + length, text: text, precision: "chunk", source: source.source))
+                        segments.append(TranscriptSegment(id: source.source.segmentID(nextIndex), start: start, end: start + length, text: text, precision: "chunk", source: source.source))
                     }
-                    result.segments.append(contentsOf: segments.sorted { $0.start < $1.start })
-                    progress = LocalProgress(result: result, completedChunks: chunk + 1)
+                    result.segments.append(contentsOf: segments)
+                    result.segments.sort { $0.start == $1.start ? $0.id < $1.id : $0.start < $1.start }
+                    skipped.remove(chunk)
+                    let scanned = max(progress.completedChunks, chunk + 1)
+                    let sortedSkipped = skipped.sorted()
+                    progress = LocalProgress(result: result, completedChunks: scanned, skippedChunks: sortedSkipped)
                     try store.write(progress, to: resultURL)
-                    source.completedChunks = chunk + 1
-                    source.attempts[attempt].completedAudioSeconds = min(task.duration, Double(chunk + 1) * 30)
+                    source.completedChunks = max(0, scanned - sortedSkipped.count)
+                    source.attempts[attempt].completedAudioSeconds = completedAudioSeconds(scanned: scanned, skipped: skipped, duration: task.duration)
+                    source.error = sortedSkipped.isEmpty ? nil : skippedSummary(family: family, skipped: sortedSkipped, completed: source.completedChunks, totalChunks: chunks, duration: task.duration, finished: false)
                     try save(source)
                     return true
                 }
-                complete = executed == true
-                if !complete { Thread.sleep(forTimeInterval: 0.5) }
+                switch outcome {
+                case .executed(true):
+                    complete = true
+                case .executed(false), .waitingForRecording:
+                    if source.state != .waitingForRecording { source.state = .waitingForRecording; try save(source) }
+                    Thread.sleep(forTimeInterval: 0.5)
+                case .waitingForInference:
+                    if source.state != .queued { source.state = .queued; try save(source) }
+                    Thread.sleep(forTimeInterval: 0.5)
+                }
             }
         }
-        try store.write(result, to: store.resultPath(task.id, model: family, source: source.source))
+        let sortedSkipped = skipped.sorted()
+        if sortedSkipped.isEmpty {
+            try store.write(result, to: store.resultPath(task.id, model: family, source: source.source))
+            source.error = nil
+            return .succeeded
+        }
+        source.error = skippedSummary(family: family, skipped: sortedSkipped, completed: source.completedChunks, totalChunks: chunks, duration: task.duration, finished: true)
+        return sortedSkipped.count < chunks ? .partial : .failed
+    }
+
+    static func completedAudioSeconds(scanned: Int, skipped: Set<Int>, duration: Double) -> Double {
+        guard scanned > 0 else { return 0 }
+        var total = 0.0
+        for chunk in 0..<scanned where !skipped.contains(chunk) {
+            total += min(30.0, max(0.0, duration - Double(chunk) * 30.0))
+        }
+        return min(duration, total)
+    }
+
+    static func skippedSummary(family: TranscriptModel, skipped: [Int], completed: Int, totalChunks: Int, duration: Double, finished: Bool) -> String {
+        if finished && skipped.count >= totalChunks {
+            return "\(family.name) 全部 \(totalChunks) 个音频块均达到生成上限，未生成正文，请回听或改用其他模型。"
+        }
+        var ranges: [(Int, Int)] = []
+        for chunk in skipped.sorted() {
+            if let last = ranges.last, chunk == last.1 + 1 { ranges[ranges.count - 1].1 = chunk }
+            else { ranges.append((chunk, chunk)) }
+        }
+        func format(_ seconds: Double, roundUp: Bool = false) -> String {
+            let total = max(0, Int(roundUp ? seconds.rounded(.up) : seconds.rounded(.down)))
+            let hours = total / 3600, minutes = (total / 60) % 60, secs = total % 60
+            return hours > 0 ? String(format: "%d:%02d:%02d", hours, minutes, secs) : String(format: "%02d:%02d", minutes, secs)
+        }
+        let listed = ranges.prefix(5).map { "\(format(Double($0.0) * 30))–\(format(min(duration, Double($0.1 + 1) * 30), roundUp: true))" }.joined(separator: "、")
+        let suffix = ranges.count > 5 ? " 等" : ""
+        let progressText = finished ? "其余 \(completed)/\(totalChunks) 块已完成" : "当前已完成 \(completed)/\(totalChunks) 块"
+        return "\(skipped.count) 个音频块达到生成上限已跳过（\(listed)\(suffix)），\(progressText)，请回听跳过区间或改用其他模型。"
     }
 
     private static func cloud(_ task: TranscriptionTask, run: TranscriptRun, source: inout TranscriptSourceExecution,
@@ -298,4 +368,16 @@ public enum TranscriptionManager {
 struct LocalProgress: Codable {
     var result: TranscriptResult
     var completedChunks: Int
+    var skippedChunks: [Int] = []
+
+    private enum CodingKeys: String, CodingKey { case result, completedChunks, skippedChunks }
+    init(result: TranscriptResult, completedChunks: Int, skippedChunks: [Int] = []) {
+        self.result = result; self.completedChunks = completedChunks; self.skippedChunks = skippedChunks
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        result = try c.decode(TranscriptResult.self, forKey: .result)
+        completedChunks = try c.decode(Int.self, forKey: .completedChunks)
+        skippedChunks = try c.decodeIfPresent([Int].self, forKey: .skippedChunks) ?? []
+    }
 }

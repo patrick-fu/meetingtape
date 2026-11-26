@@ -110,7 +110,11 @@ public struct TranscriptExportSnapshot: Sendable {
             let unavailable = version.result?.unavailableSources ?? []
             let availability = version.result == nil && run.state == .succeeded ? "正文缺失或不可读取" : unavailable.isEmpty ? state(run.state) : "部分正文"
             lines += ["状态：\(availability)", ""]
-            for source in run.sources { lines += ["- \(source.source.name)：\(state(source.state))\(unavailable.contains(source.source) ? "，正文缺失或不可读取" : "")"] }
+            for source in run.sources {
+                let missingNote = unavailable.contains(source.source) ? "，正文缺失或不可读取" : ""
+                let detail = source.state == .partial ? source.error.map { "（\(text($0))）" } ?? "" : ""
+                lines += ["- \(source.source.name)：\(state(source.state))\(missingNote)\(detail)"]
+            }
             lines.append("")
             for segment in version.result?.segments ?? [] {
                 let precision = segment.precision == "chunk" ? " · 音频块时间" : ""
@@ -198,7 +202,7 @@ public struct TranscriptExportSnapshot: Sendable {
                 let dates = ISO8601DateFormatter()
                 let queue = dates.date(from: attempt.queuedAt).flatMap { queued in dates.date(from: attempt.startedAt).map { max(0, $0.timeIntervalSince(queued)) } }
                 let total = queue.flatMap { queued in attempt.elapsedSeconds.map { queued + $0 } }
-                let audio = attempt.completedAudioSeconds.map { "0–\(time($0))（累计进度）" } ?? "未采集"
+                let audio = attempt.completedAudioSeconds.map { attempt.state == .partial ? "累计 \(time($0))（不含跳过块）" : "0–\(time($0))（累计进度）" } ?? "未采集"
                 let cpu = run.model.local ? seconds(attempt.cpuSeconds) : "不可得：服务未提供"
                 let memory = run.model.local ? attempt.peakResidentBytes.map { String(format: "%.1f MiB", Double($0) / 1_048_576) } ?? "未采集" : "不可得：服务未提供"
                 lines.append("| \(source.source.name) / \(index + 1) | \(state(attempt.state)) | \(audio) | \(seconds(queue)) | \(seconds(attempt.executionSeconds)) | \(seconds(total)) | \(cpu) | \(memory) |")
@@ -209,7 +213,7 @@ public struct TranscriptExportSnapshot: Sendable {
                 lines += ["", "\(source.source.name)第 \(index + 1) 次尝试：CPU 为 \(attempt.observedChunks) 个已观测 runner 进程的累计时间；RSS 为这些单独进程的峰值最大值，不包含 GPU、其他进程或整机内存。"]
             }
         }
-        lines += ["", "排队耗时按保存的时间戳计算，精度可能仅为秒；总耗时为排队与本次运行耗时之和。", run.model.local ? "执行耗时包含音频准备与实际推理；总耗时还包含等待录音优先锁的时间。" : "执行与总耗时包含上传、网络等待和轮询；云端 CPU、内存和计费用量不可得，服务未提供。", ""]
+        lines += ["", "排队耗时按保存的时间戳计算，精度可能仅为秒；总耗时为排队与本次运行耗时之和。", run.model.local ? "执行耗时包含音频准备与实际推理；总耗时还包含等待录音优先或本地推理锁的时间。" : "执行与总耗时包含上传、网络等待和轮询；云端 CPU、内存和计费用量不可得，服务未提供。", ""]
         return lines
     }
 
