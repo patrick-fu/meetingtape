@@ -5,10 +5,10 @@ import Foundation
 
 public final class TranscriptionLock {
     private let descriptor: Int32
-    public init(_ path: URL, wait: Bool = false) throws {
+    public init(_ path: URL, wait: Bool = false, shared: Bool = false) throws {
         descriptor = open(path.path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
         guard descriptor >= 0 else { throw TranscriptionFailure("无法打开转写锁。") }
-        if flock(descriptor, LOCK_EX | (wait ? 0 : LOCK_NB)) != 0 {
+        if flock(descriptor, (shared ? LOCK_SH : LOCK_EX) | (wait ? 0 : LOCK_NB)) != 0 {
             close(descriptor)
             throw TranscriptionFailure("转写任务正在运行。")
         }
@@ -130,7 +130,7 @@ public struct TranscriptionStore: Sendable {
         let path = ProcessInfo.processInfo.environment["MEETINGTAPE_STATE_DIR"].map { URL(fileURLWithPath: $0) }
             ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("MeetingTape")
         guard FileManager.default.fileExists(atPath: path.appendingPathComponent("session.lock").path) else { return false }
-        if let lock = try? TranscriptionLock(path.appendingPathComponent("session.lock")) { withExtendedLifetime(lock) {}; return false }
+        if let lock = try? TranscriptionLock(path.appendingPathComponent("session.lock"), shared: true) { withExtendedLifetime(lock) {}; return false }
         return true
     }
 }

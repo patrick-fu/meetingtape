@@ -18,7 +18,7 @@ struct TranscriptSection: View {
                 Text("语音转写").font(.system(size: 17, weight: .semibold))
                 Spacer()
                 if let task { TranscriptExportButton(item: item, primary: task.id + ":" + (reading ?? task.primaryModel).rawValue) }
-                if let task, !task.finished { ProgressView().controlSize(.small); Text(task.state == "waitingForRecording" ? "录音优先，转写等待中" : "正在转写").font(.system(size: 11)).foregroundStyle(.secondary) }
+                if let task, !task.finished { ProgressView().controlSize(.small); Text(Self.statusText(for: task.state)).font(.system(size: 11)).foregroundStyle(.secondary) }
             }
             HStack(spacing: 15) {
                 ForEach(TranscriptModel.allCases) { family in
@@ -100,6 +100,14 @@ struct TranscriptSection: View {
         }
         .onAppear { selected = transcription.inventory?.settings.models ?? [.qwen] }
         .onChange(of: transcription.inventory?.settings.models) { _, models in if task == nil, let models { selected = models } }
+    }
+
+    nonisolated static func statusText(for state: String) -> String {
+        switch state {
+        case "waitingForRecording": "录音优先，转写等待中"
+        case "queued": "排队等待转写中"
+        default: "正在转写"
+        }
     }
 
     private func differs(_ segment: TranscriptSegment, from source: TranscriptModel) -> Bool {

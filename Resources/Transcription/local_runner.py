@@ -127,6 +127,7 @@ def transcribe(family: str, model_path: Path, samples, duration: float) -> dict:
                                 max_tokens=max_tokens, repetition_penalty=1.1)
         if result.generation_tokens >= max_tokens:
             return {"error": "Qwen 生成达到上限，可能存在异常重复；此音频块未记为完成，请回听或改用其他模型。",
+                    "errorCode": "decoder_exhausted",
                     "raw": json_value(result)}
         segments = normalize_segments(result.segments, duration)
         text = result.text
@@ -146,6 +147,7 @@ def transcribe(family: str, model_path: Path, samples, duration: float) -> dict:
         )
         if result.generation_tokens >= max_tokens:
             return {"error": "MOSS 生成达到上限，可能存在异常重复；此音频块未记为完成，请回听或改用其他模型。",
+                    "errorCode": "decoder_exhausted",
                     "raw": json_value(result)}
         parsed = parse_transcript(result.text)
         segments = normalize_segments(parsed, duration)

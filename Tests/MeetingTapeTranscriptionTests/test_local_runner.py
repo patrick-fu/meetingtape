@@ -26,6 +26,7 @@ class LocalRunnerTests(unittest.TestCase):
             return SimpleNamespace(text='这个。' * count, segments=[], generation_tokens=count)
         result = self.transcribe(endless)
         self.assertTrue('error' in result, 'exhausted generation must fail')
+        self.assertEqual(result.get('errorCode'), 'decoder_exhausted')
         self.assertNotIn('text', result)
         self.assertIn('这个。', result['raw']['text'])
 
@@ -85,6 +86,7 @@ class MossRunnerTests(unittest.TestCase):
                                    generation_tokens=options['max_tokens'])
         result = self.transcribe(endless, [])
         self.assertTrue('error' in result, 'MOSS exhaustion must fail')
+        self.assertEqual(result.get('errorCode'), 'decoder_exhausted')
         self.assertNotIn('text', result)
         self.assertIn('small fish', result['raw']['text'])
         self.assertLess(result['raw']['generation_tokens'], 8192)

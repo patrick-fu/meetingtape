@@ -107,7 +107,7 @@ public enum LocalModels {
             do { let file = try AVAudioFile(forWriting: smoke, settings: format.settings, commonFormat: .pcmFormatInt16, interleaved: true); try file.write(from: buffer) }
             var validated = false
             repeat {
-                let outcome: Bool? = try TranscriptionProcess.local { lease in
+                let outcome: LocalExecution<Bool> = try TranscriptionProcess.local { lease in
                     let output = try TranscriptionProcess.run(URL(fileURLWithPath: installation.python), [try TranscriptionResources.directory().appendingPathComponent("local_runner.py").path,
                         "--model-type", model.rawValue, "--model", installation.model, "--audio", smoke.path, "--output", raw.path], environment: TranscriptionProcess.environment(offline: true), local: true, lease: lease, timeout: 180)
                     if output.yielded { return false }
@@ -116,7 +116,7 @@ public enum LocalModels {
                     }
                     return true
                 }
-                validated = outcome == true
+                if case .executed(true) = outcome { validated = true }
                 if !validated { Thread.sleep(forTimeInterval: 0.5) }
             } while !validated
             installation.ready = true

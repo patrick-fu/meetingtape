@@ -20,7 +20,16 @@ public struct RecordingPriorityPermit {
     private let inference: TranscriptionLock
     public init() throws {
         let store = try TranscriptionStore()
-        intent = try TranscriptionLock(store.root.appendingPathComponent("recording-intent.lock"))
+        let intentPath = store.root.appendingPathComponent("recording-intent.lock")
+        let intentDeadline = Date().addingTimeInterval(0.5)
+        var acquiredIntent: TranscriptionLock?
+        repeat {
+            acquiredIntent = try? TranscriptionLock(intentPath)
+            if acquiredIntent != nil { break }
+            Thread.sleep(forTimeInterval: 0.01)
+        } while Date() < intentDeadline
+        guard let acquiredIntent else { throw TranscriptionFailure("转写任务正在运行。") }
+        intent = acquiredIntent
         let deadline = Date().addingTimeInterval(10)
         var acquired: TranscriptionLock?
         repeat {
@@ -34,11 +43,17 @@ public struct RecordingPriorityPermit {
     public func retain() { withExtendedLifetime((intent, inference)) {} }
 }
 
+enum LocalExecution<T> {
+    case executed(T)
+    case waitingForRecording
+    case waitingForInference
+}
+
 enum TranscriptionProcess {
     struct Output { var data: Data; var errors: Data; var status: Int32; var yielded: Bool }
 
     static func run(_ executable: URL, _ arguments: [String], environment: [String: String]? = nil,
-                    local: Bool = false, lease: TranscriptionLock? = nil, timeout: TimeInterval = 600) throws -> Output {
+                    local: Bool = false, lease: TranscriptionLock? = nil, store: TranscriptionStore? = nil, timeout: TimeInterval = 600) throws -> Output {
         let process = Process()
         defer { withExtendedLifetime(process) {} }
         let output = Pipe(), errors = Pipe()
@@ -59,7 +74,7 @@ enum TranscriptionProcess {
         var yielded = false
         let deadline = Date().addingTimeInterval(timeout)
         while exited.wait(timeout: .now() + 0.1) != .success {
-            let requested = local && (TranscriptionStore.recordingActive() || recordingRequested())
+            let requested = local && (TranscriptionStore.recordingActive() || recordingRequested(in: store))
             if requested || Date() > deadline {
                 yielded = requested
                 process.terminate()
@@ -71,9 +86,9 @@ enum TranscriptionProcess {
         return Output(data: data.value, errors: diagnostics.value, status: process.terminationStatus, yielded: yielded)
     }
 
-    static func recordingRequested() -> Bool {
-        guard let store = try? TranscriptionStore() else { return true }
-        if let lock = try? TranscriptionLock(store.root.appendingPathComponent("recording-intent.lock")) { withExtendedLifetime(lock) {}; return false }
+    static func recordingRequested(in store: TranscriptionStore? = nil) -> Bool {
+        guard let store = store ?? (try? TranscriptionStore()) else { return true }
+        if let lock = try? TranscriptionLock(store.root.appendingPathComponent("recording-intent.lock"), shared: true) { withExtendedLifetime(lock) {}; return false }
         return true
     }
 
@@ -87,12 +102,17 @@ enum TranscriptionProcess {
         return result
     }
 
-    static func local<T>(_ action: (TranscriptionLock) throws -> T) throws -> T? {
-        let store = try TranscriptionStore()
-        guard let lock = try? TranscriptionLock(store.root.appendingPathComponent("inference.lock")) else { return nil }
+    static func local<T>(store: TranscriptionStore? = nil,
+                         recordingActive: () -> Bool = TranscriptionStore.recordingActive,
+                         _ action: (TranscriptionLock) throws -> T) throws -> LocalExecution<T> {
+        let store = try store ?? TranscriptionStore()
+        guard !recordingActive(), !recordingRequested(in: store) else { return .waitingForRecording }
+        guard let lock = try? TranscriptionLock(store.root.appendingPathComponent("inference.lock")) else {
+            return (recordingActive() || recordingRequested(in: store)) ? .waitingForRecording : .waitingForInference
+        }
         defer { withExtendedLifetime(lock) {} }
-        guard !TranscriptionStore.recordingActive(), !recordingRequested() else { return nil }
-        return try action(lock)
+        guard !recordingActive(), !recordingRequested(in: store) else { return .waitingForRecording }
+        return .executed(try action(lock))
     }
 }
 

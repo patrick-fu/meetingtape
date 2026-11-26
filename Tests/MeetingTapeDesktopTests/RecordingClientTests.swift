@@ -58,4 +58,10 @@ final class RecordingClientTests: XCTestCase {
         await fulfillment(of: [completed], timeout: 5)
         task.cancel()
     }
+
+    func testTranscriptSectionStatusTextDistinguishesQueuedFromRecordingWait() {
+        XCTAssertEqual(TranscriptSection.statusText(for: "waitingForRecording"), "录音优先，转写等待中")
+        XCTAssertEqual(TranscriptSection.statusText(for: "queued"), "排队等待转写中")
+        XCTAssertEqual(TranscriptSection.statusText(for: "running"), "正在转写")
+    }
 }
