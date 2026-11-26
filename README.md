@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.4.0/MeetingTape-0.4.0-arm64.dmg"><strong>Download for Apple Silicon</strong></a>
-  &nbsp;·&nbsp; v0.4.0
+  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.4.1/MeetingTape-0.4.1-arm64.dmg"><strong>Download for Apple Silicon</strong></a>
+  &nbsp;·&nbsp; v0.4.1
 </p>
 
 <p align="center">
@@ -55,7 +55,7 @@ Use SenseVoice for on-device live captions, Qwen or MOSS for saved recordings, o
 Requires an Apple Silicon Mac running macOS 14.2 or later.
 
 <p align="center">
-  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.4.0/MeetingTape-0.4.0-arm64.dmg"><strong>Get MeetingTape</strong></a>
+  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.4.1/MeetingTape-0.4.1-arm64.dmg"><strong>Get MeetingTape</strong></a>
 </p>
 
 ---
@@ -63,7 +63,7 @@ Requires an Apple Silicon Mac running macOS 14.2 or later.
 <p align="center">
   <a href="docs/distribution.md">User guide</a> ·
   <a href="docs/transcription.md">Transcription setup</a> ·
-  <a href="https://github.com/patrick-fu/meetingtape/releases/tag/v0.4.0">Release notes</a> ·
+  <a href="https://github.com/patrick-fu/meetingtape/releases/tag/v0.4.1">Release notes</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
   <a href="LICENSE">MIT License</a>
 </p>

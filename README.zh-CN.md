@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.4.0/MeetingTape-0.4.0-arm64.dmg"><strong>下载 Apple Silicon 版</strong></a>
-  &nbsp;·&nbsp; v0.4.0
+  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.4.1/MeetingTape-0.4.1-arm64.dmg"><strong>下载 Apple Silicon 版</strong></a>
+  &nbsp;·&nbsp; v0.4.1
 </p>
 
 <p align="center">
@@ -55,7 +55,7 @@ MeetingTape 录制系统声音和麦克风，通过字幕让你跟随对话，�
 需要一台运行 macOS 14.2 或更高版本的 Apple Silicon Mac。
 
 <p align="center">
-  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.4.0/MeetingTape-0.4.0-arm64.dmg"><strong>获取 MeetingTape</strong></a>
+  <a href="https://github.com/patrick-fu/meetingtape/releases/download/v0.4.1/MeetingTape-0.4.1-arm64.dmg"><strong>获取 MeetingTape</strong></a>
 </p>
 
 ---
@@ -63,7 +63,7 @@ MeetingTape 录制系统声音和麦克风，通过字幕让你跟随对话，�
 <p align="center">
   <a href="docs/distribution.md">使用指南</a> ·
   <a href="docs/transcription.md">转写设置</a> ·
-  <a href="https://github.com/patrick-fu/meetingtape/releases/tag/v0.4.0">版本说明</a> ·
+  <a href="https://github.com/patrick-fu/meetingtape/releases/tag/v0.4.1">版本说明</a> ·
   <a href="CONTRIBUTING.md">贡献指南</a> ·
   <a href="LICENSE">MIT 许可证</a>
 </p>
